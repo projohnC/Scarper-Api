@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useEffect } from "react"
 import {
   Home,
@@ -70,31 +71,50 @@ const navItems = [
 ]
 
 function AppSidebar() {
+  const pathname = usePathname()
+  const { user } = useAuth()
+  
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <span className="text-sm font-bold">A</span>
-          </div>
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">Acme Inc</span>
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user?.photoURL || "/avatars/01.png"} alt={user?.email} />
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {user?.email?.charAt(0).toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <span className="font-medium group-data-[collapsible=icon]:hidden">
+            {user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || "User"}
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="data-[state=collapsed]:hidden">Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="data-[state=collapsed]:hidden font-medium">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <a href={item.url} className="group-data-[state=collapsed]:justify-center">
-                      <item.icon />
-                      <span className="data-[state=collapsed]:hidden">{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navItems.map((item) => {
+                const isActive = pathname === item.url || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+                
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild tooltip={item.title}>
+                      <a 
+                        href={item.url} 
+                        className={`group-data-[state=collapsed]:justify-center font-medium transition-colors ${
+                          isActive 
+                            ? "bg-primary text-primary-foreground shadow-sm" 
+                            : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                      >
+                        <item.icon className={isActive ? "text-primary-foreground" : ""} />
+                        <span className="data-[state=collapsed]:hidden font-medium">{item.title}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
