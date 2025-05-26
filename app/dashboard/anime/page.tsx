@@ -1,17 +1,17 @@
 "use client"
 
 import { useAuth } from "@/contexts/auth-context"
-import { useRouter } from "next/navigation"
-import { usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 import {
   Home,
   Settings,
   Users,
-  Film,
+  BarChart3,
   FileText,
   LogOut,
-  User
+  User,
+  Film
 } from "lucide-react"
 import {
   Sidebar,
@@ -38,8 +38,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Card, CardContent } from "@/components/ui/card"
 import { signOut } from "@/lib/auth"
 import { ThemeToggle } from "@/components/theme-toggle"
+import Image from "next/image"
+
+// Interface for the API response
+interface AnimePost {
+  imageUrl: string
+  title: string
+  postUrl: string
+}
+
+interface ApiResponse {
+  success: boolean
+  count: number
+  posts: AnimePost[]
+}
 
 // Navigation items
 const navItems = [
@@ -52,6 +67,11 @@ const navItems = [
     title: "Anime",
     url: "/dashboard/anime",
     icon: Film,
+  },
+  {
+    title: "Analytics",
+    url: "/dashboard/analytics",
+    icon: BarChart3,
   },
   {
     title: "Users",
@@ -186,7 +206,7 @@ function Navbar() {
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
       <div className="flex flex-1 items-center justify-between">
-        <h1 className="text-lg font-semibold">Dashboard</h1>
+        <h1 className="text-lg font-semibold">Anime Collection</h1>
         <div className="flex items-center gap-2">
           <ThemeToggle />
         </div>
@@ -195,17 +215,81 @@ function Navbar() {
   )
 }
 
-export default function Dashboard() {
-  const { user, loading } = useAuth()
+function AnimeGrid({ posts }: { posts: AnimePost[] }) {
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-5 lg:gap-6 mt-6">
+      {posts.map((post, index) => {
+        // Extract the ID from the URL for our internal routing
+        const urlParts = post.postUrl.split('/');
+        // The ID is the second-to-last part in the URL
+        const id = urlParts[urlParts.length - 2] || '';
+        
+        return (
+          <a 
+            key={index}
+            href={`/dashboard/anime/${id}`}
+            className="transition-transform hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-primary rounded-lg overflow-hidden"
+          >
+            <div className="overflow-hidden flex flex-col">
+              <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                <Image
+                  src={post.imageUrl}
+                  alt={post.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 640px) 33vw, (max-width: 768px) 33vw, 25vw"
+                  quality={80}
+                />
+              </div>
+              <h3 className="text-center font-medium mt-1 sm:mt-2 text-[10px] sm:text-xs md:text-sm line-clamp-1 sm:line-clamp-2">{post.title}</h3>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  )
+}
+
+// Update loading skeleton to match the new grid layout
+export default function AnimeDashboard() {
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
+  const [anime, setAnime] = useState<AnimePost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push("/login")
     }
-  }, [user, loading, router])
+  }, [user, authLoading, router])
 
-  if (loading) {
+  useEffect(() => {
+    const fetchAnime = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch('/api/posts')
+        const data: ApiResponse = await res.json()
+
+        if (data.success) {
+          setAnime(data.posts)
+        } else {
+          setError("Failed to fetch anime data")
+        }
+      } catch (err) {
+        setError("An error occurred while fetching anime data")
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchAnime()
+    }
+  }, [user])
+
+  if (authLoading) {
     return (
       <div className="flex min-h-svh items-center justify-center">
         <div>Loading...</div>
@@ -223,33 +307,23 @@ export default function Dashboard() {
       <SidebarInset>
         <Navbar />
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div className="aspect-video rounded-xl bg-muted/50 p-4">
-              <h3 className="font-semibold">Welcome back!</h3>
-              <p className="text-sm text-muted-foreground">
-                Here's what's happening with your account today.
-              </p>
+          {loading ? (
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-5 lg:gap-6 mt-6">
+              {Array(12).fill(0).map((_, i) => (
+                <div key={i} className="flex flex-col">
+                  <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
+                  <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
+                </div>
+              ))}
             </div>
-            <div className="aspect-video rounded-xl bg-muted/50 p-4">
-              <h3 className="font-semibold">Quick Stats</h3>
-              <p className="text-sm text-muted-foreground">
-                Your key metrics at a glance.
-              </p>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+              <p className="text-destructive mb-4">{error}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
             </div>
-            <div className="aspect-video rounded-xl bg-muted/50 p-4">
-              <h3 className="font-semibold">Recent Activity</h3>
-              <p className="text-sm text-muted-foreground">
-                Latest updates and notifications.
-              </p>
-            </div>
-          </div>
-          <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min p-4">
-            <h2 className="text-xl font-semibold mb-4">Main Content Area</h2>
-            <p className="text-muted-foreground">
-              This is your main dashboard content area. You can add charts, tables,
-              and other components here to build out your dashboard functionality.
-            </p>
-          </div>
+          ) : (
+            <AnimeGrid posts={anime} />
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>
