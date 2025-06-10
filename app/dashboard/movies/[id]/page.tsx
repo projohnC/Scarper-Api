@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import Image from "next/image"
+import { DashboardNavbar } from "../../layout"
 
 // Navigation items 
 const navItems = [
@@ -110,9 +111,22 @@ interface MovieDetails {
   }[];
 }
 
+interface HubCloudLink {
+  title: string;
+  url: string;
+  id: string;
+}
+
 interface Episode {
   title: string;
   link: string;
+}
+
+interface MdriveEpisode {
+  episodeNumber: string;
+  quality: string;
+  size: string;
+  hubCloudLinks: HubCloudLink[];
 }
 
 interface StreamLink {
@@ -133,131 +147,6 @@ interface ApiResponse {
   error?: string;
 }
 
-function AppSidebar() {
-  const pathname = usePathname()
-  const { user } = useAuth()
-  
-  return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 py-2">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.photoURL || "/avatars/01.png"} alt={user?.email} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {user?.email?.charAt(0).toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-medium group-data-[collapsible=icon]:hidden">
-            {user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || "User"}
-          </span>
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="data-[state=collapsed]:hidden font-medium">Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive = pathname === item.url || (item.url !== "/dashboard" && pathname.startsWith(item.url))
-                
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild tooltip={item.title}>
-                      <a 
-                        href={item.url} 
-                        className={`group-data-[state=collapsed]:justify-center font-medium transition-colors ${
-                          isActive 
-                            ? "bg-primary text-primary-foreground shadow-sm" 
-                            : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        }`}
-                      >
-                        <item.icon className={isActive ? "text-primary-foreground" : ""} />
-                        <span className="data-[state=collapsed]:hidden font-medium">{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border">
-        <UserMenu />
-      </SidebarFooter>
-    </Sidebar>
-  )
-}
-
-function UserMenu() {
-  const { user } = useAuth()
-  const router = useRouter()
-
-  const handleSignOut = async () => {
-    await signOut()
-    router.push("/login")
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-start gap-2 h-12 group-data-[state=collapsed]:justify-center">
-          <Avatar className="h-8 w-8">
-           <AvatarImage src={user?.photoURL || "/avatars/01.png"} alt={user?.email} />
-            <AvatarFallback>
-              {user?.email?.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="grid flex-1 text-left text-sm leading-tight data-[state=collapsed]:hidden">
-            <span className="truncate font-semibold">{user?.displayName}</span>
-            <span className="truncate text-xs text-muted-foreground">
-              {user?.email}
-            </span>
-          </div>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user?.email}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user?.email}
-            </p>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <User className="mr-2 h-4 w-4" />
-          <span>Profile</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-function Navbar({ title }: { title: string }) {
-  return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 sticky top-0 bg-background z-10">
-      <SidebarTrigger className="-ml-1" />
-      <div className="flex flex-1 items-center justify-between">
-        <h1 className="text-lg font-semibold">{title}</h1>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-        </div>
-      </div>
-    </header>
-  )
-}
-
 export default function MovieDetailPage({ params }: { params: { id: string } }) {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -276,6 +165,9 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
   const [fetchingVideoUrl, setFetchingVideoUrl] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [hubCloudLinks, setHubCloudLinks] = useState<HubCloudLink[]>([])
+  const [fetchingHubCloud, setFetchingHubCloud] = useState(false)
+  const [mdriveEpisodes, setMdriveEpisodes] = useState<MdriveEpisode[]>([])
 
   // Unwrap the params object using React.use()
   const unwrappedParams = use(params);
@@ -322,6 +214,17 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
 
         if (data.success && data.data) {
           setMovieDetails(data.data)
+          
+          // Auto-select 480p quality if available
+          const quality480p = data.data.episodes.find(ep => ep.quality.includes('480p'))
+          if (quality480p) {
+            setSelectedQuality(quality480p)
+            if (quality480p.url.includes('mdrive.today')) {
+              fetchHubCloudLinks(quality480p.url)
+            } else {
+              fetchEpisodes(quality480p.url)
+            }
+          }
         } else {
           setError(data.error || "Failed to fetch movie details")
         }
@@ -338,6 +241,51 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
     }
   }, [user, id])
 
+  const fetchHubCloudLinks = async (url: string) => {
+    if (!url) {
+      toast.error("No episode link available")
+      return
+    }
+
+    setFetchingHubCloud(true)
+    try {
+      const response = await fetch(`/api/mdrive?url=${encodeURIComponent(url)}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      console.log("MDrive data received:", data)
+      
+      if (data.success) {
+        if (data.episodes && data.episodes.length > 0) {
+          setMdriveEpisodes(data.episodes)
+          toast.success(`Found ${data.episodes.length} episodes`)
+        } else if (data.directLinks && data.directLinks.length > 0) {
+          setHubCloudLinks(data.directLinks)
+          toast.success(`Found ${data.directLinks.length} HubCloud links`)
+        } else {
+          toast.error("No content found")
+          setHubCloudLinks([])
+          setMdriveEpisodes([])
+        }
+      } else {
+        toast.error("Failed to extract content")
+        setHubCloudLinks([])
+        setMdriveEpisodes([])
+      }
+    } catch (error) {
+      console.error("Error fetching MDrive content:", error)
+      toast.error("Failed to fetch content")
+      setHubCloudLinks([])
+      setMdriveEpisodes([])
+    } finally {
+      setFetchingHubCloud(false)
+    }
+  }
+
   const fetchEpisodes = async (url: string) => {
     if (!url) {
       toast.error("No episode link available")
@@ -347,18 +295,39 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
     setFetchingEpisodes(true)
     try {
       const response = await fetch(`https://screenscape-aipi.vercel.app/api/drive?action=episodes&url=${encodeURIComponent(url)}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const episodeData = await response.json()
       
-      if (Array.isArray(episodeData)) {
+      console.log("Episode data received:", episodeData) // Debug log
+      
+      if (Array.isArray(episodeData) && episodeData.length > 0) {
         setEpisodes(episodeData)
+      } else if (episodeData && episodeData.episodes && Array.isArray(episodeData.episodes)) {
+        setEpisodes(episodeData.episodes)
       } else {
-        toast.error("Failed to fetch episodes")
-        setEpisodes([])
+        // If the API doesn't return episodes, create a single episode from the URL
+        console.log("No episodes found, creating single episode from URL")
+        const singleEpisode = {
+          title: "Movie",
+          link: url
+        }
+        setEpisodes([singleEpisode])
       }
     } catch (error) {
       console.error("Error fetching episodes:", error)
-      toast.error("Failed to fetch episodes")
-      setEpisodes([])
+      
+      // Fallback: create a single episode from the URL if API fails
+      const fallbackEpisode = {
+        title: "Movie",
+        link: url
+      }
+      setEpisodes([fallbackEpisode])
+      
+      toast.error("Using direct link as episode API failed")
     } finally {
       setFetchingEpisodes(false)
     }
@@ -436,7 +405,22 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
   const handleQualityClick = (quality: {url: string, quality: string}) => {
     setSelectedQuality(quality)
     setEpisodes([])
-    fetchEpisodes(quality.url)
+    setHubCloudLinks([])
+    setMdriveEpisodes([])
+    
+    if (quality.url.includes('mdrive.today')) {
+      fetchHubCloudLinks(quality.url)
+    } else {
+      fetchEpisodes(quality.url)
+    }
+  }
+
+  const handleHubCloudLinkClick = async (hubCloudLink: HubCloudLink) => {
+    setDialogOpen(true)
+    setStreamLinks([])
+    setCopiedIndex(null)
+    setSelectedEpisode({ title: hubCloudLink.title, link: hubCloudLink.url })
+    fetchVideoUrl(hubCloudLink.url)
   }
 
   if (authLoading) {
@@ -453,219 +437,284 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
 
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="flex flex-col">
-        <Navbar title={inferredTitle} />
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
-          {loading ? (
-            <div className="w-full mt-4">
-              <div className="w-full h-64 bg-muted animate-pulse rounded-lg mb-4" />
-              <div className="h-8 bg-muted animate-pulse rounded w-1/3 mb-2" />
-              <div className="h-4 bg-muted animate-pulse rounded w-full mb-1" />
-              <div className="h-4 bg-muted animate-pulse rounded w-5/6" />
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-              <p className="text-destructive mb-4">{error}</p>
-              <Button onClick={() => window.location.reload()}>Retry</Button>
-            </div>
-          ) : movieDetails ? (
-            <>
-              {/* Movie Header Section */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {/* Movie Poster */}
-                <div className="md:col-span-1">
-                  <div className="relative aspect-[2/3] rounded-lg overflow-hidden">
-                    <Image
-                      src={movieDetails.mainImage || '/placeholder.jpg'}
-                      alt={inferredTitle}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 25vw"
-                      priority
-                    />
-                  </div>
-                </div>
-                
-                {/* Movie Info */}
-                <div className="md:col-span-3">
-                  <h1 className="text-2xl sm:text-3xl font-bold mb-4">{inferredTitle}</h1>
-                  
-                  {/* IMDB Rating */}
-                  {movieDetails.imdbRating?.text && (
-                    <div className="mb-4">
-                      <a 
-                        href={movieDetails.imdbRating.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium hover:underline"
-                      >
-                        <Badge variant="outline" className="bg-amber-100/50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-400/20">
-                          IMDb
-                        </Badge>
-                        {movieDetails.imdbRating.text}
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+      <div className="flex min-h-screen w-full">
+        <div className="flex flex-col flex-1">
+          <DashboardNavbar title={inferredTitle} />
+          <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
+            {loading ? (
+              <div className="w-full mt-4">
+                <div className="w-full h-64 bg-muted animate-pulse rounded-lg mb-4" />
+                <div className="h-8 bg-muted animate-pulse rounded w-1/3 mb-2" />
+                <div className="h-4 bg-muted animate-pulse rounded w-full mb-1" />
+                <div className="h-4 bg-muted animate-pulse rounded w-5/6" />
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+                <p className="text-destructive mb-4">{error}</p>
+                <Button onClick={() => window.location.reload()}>Retry</Button>
+              </div>
+            ) : movieDetails ? (
+              <>
+                {/* Movie Header Section */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {/* Movie Poster */}
+                  <div className="md:col-span-1">
+                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden">
+                      <Image
+                        src={movieDetails.mainImage || '/placeholder.jpg'}
+                        alt={inferredTitle}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 25vw"
+                        priority
+                      />
                     </div>
-                  )}
+                  </div>
                   
-                  {/* Storyline */}
-                  <div className="bg-slate-100 dark:bg-black/20 rounded-xl p-4 border border-slate-200 dark:border-white/5 mb-6">
-                    <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
-                      <Info className="h-4 w-4 text-purple-500" />
-                      Overview
-                    </h2>
-                    <div className="relative">
-                      <div className={`relative overflow-hidden transition-all duration-300 text-slate-700 dark:text-muted-foreground ${showFullOverview ? '' : 'max-h-[4.5em]'}`}>
-                        <p>{movieDetails.storyline || "No overview available."}</p>
-                      </div>
-                      {!showFullOverview && movieDetails.storyline && movieDetails.storyline.length > 200 && (
-                        <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-slate-100 dark:from-black/20 to-transparent"></div>
-                      )}
-                      {movieDetails.storyline && movieDetails.storyline.length > 200 && (
-                        <button 
-                          onClick={() => setShowFullOverview(!showFullOverview)} 
-                          className="text-purple-600 dark:text-purple-500 font-medium text-xs mt-2 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+                  {/* Movie Info */}
+                  <div className="md:col-span-3">
+                    <h1 className="text-2xl sm:text-3xl font-bold mb-4">{inferredTitle}</h1>
+                    
+                    {/* IMDB Rating */}
+                    {movieDetails.imdbRating?.text && (
+                      <div className="mb-4">
+                        <a 
+                          href={movieDetails.imdbRating.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium hover:underline"
                         >
-                          {showFullOverview ? "Read Less" : "Read More"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Download Options with Dropdown */}
-                  <div className="mt-6">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="secondary" className="w-auto shadow-sm">
-                          Select Quality
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-28" align="center">
-                        {movieDetails.episodes.map((quality, idx) => (
-                          <DropdownMenuItem 
-                            key={idx}
-                            onClick={() => handleQualityClick(quality)}
-                            className="cursor-pointer justify-center"
-                          >
-                            {extractQuality(quality.quality)}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-
-                  {/* Episodes Section */}
-                  {selectedQuality && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-semibold mb-3">
-                        Episodes - {extractQuality(selectedQuality.quality)}
-                      </h3>
-                      {fetchingEpisodes ? (
-                        <div className="flex items-center gap-2 py-4">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span className="text-sm text-muted-foreground">Loading episodes...</span>
+                          <Badge variant="outline" className="bg-amber-100/50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-400/20">
+                            IMDb
+                          </Badge>
+                          {movieDetails.imdbRating.text}
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    )}
+                    
+                    {/* Storyline */}
+                    <div className="bg-slate-100 dark:bg-black/20 rounded-xl p-4 border border-slate-200 dark:border-white/5 mb-6">
+                      <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
+                        <Info className="h-4 w-4 text-purple-500" />
+                        Overview
+                      </h2>
+                      <div className="relative">
+                        <div className={`relative overflow-hidden transition-all duration-300 text-slate-700 dark:text-muted-foreground ${showFullOverview ? '' : 'max-h-[4.5em]'}`}>
+                          <p>{movieDetails.storyline || "No overview available."}</p>
                         </div>
-                      ) : episodes.length > 0 ? (
+                        {!showFullOverview && movieDetails.storyline && movieDetails.storyline.length > 200 && (
+                          <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-slate-100 dark:from-black/20 to-transparent"></div>
+                        )}
+                        {movieDetails.storyline && movieDetails.storyline.length > 200 && (
+                          <button 
+                            onClick={() => setShowFullOverview(!showFullOverview)} 
+                            className="text-purple-600 dark:text-purple-500 font-medium text-xs mt-2 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+                          >
+                            {showFullOverview ? "Read Less" : "Read More"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Download Options with Dropdown */}
+                    <div className="mt-6">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="secondary" className="w-auto shadow-sm">
+                            Select Quality
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-28" align="center">
+                          {movieDetails.episodes.map((quality, idx) => (
+                            <DropdownMenuItem 
+                              key={idx}
+                              onClick={() => handleQualityClick(quality)}
+                              className="cursor-pointer justify-center"
+                            >
+                              {extractQuality(quality.quality)}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* HubCloud Links Section */}
+                    {selectedQuality && selectedQuality.url.includes('mdrive.today') && mdriveEpisodes.length === 0 && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-semibold mb-3">
+                          HubCloud Links - {extractQuality(selectedQuality.quality)}
+                        </h3>
+                        {fetchingHubCloud ? (
+                          <div className="flex items-center gap-2 py-4">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-sm text-muted-foreground">Loading HubCloud links...</span>
+                          </div>
+                        ) : hubCloudLinks.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {hubCloudLinks.map((link, idx) => (
+                              <Button
+                                key={idx}
+                                variant="outline"
+                                className="text-xs h-auto p-3 flex flex-col items-start gap-1"
+                                onClick={() => handleHubCloudLinkClick(link)}
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <Download className="h-3 w-3 text-blue-500" />
+                                  <span className="font-medium">{link.title}</span>
+                                </div>
+                                {link.id && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {link.id.replace('HubCloud-', '')}
+                                  </span>
+                                )}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Episodes Section (for non-mdrive URLs) */}
+                    {selectedQuality && !selectedQuality.url.includes('mdrive.today') && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-semibold mb-3">
+                          Episodes - {extractQuality(selectedQuality.quality)}
+                        </h3>
+                        {fetchingEpisodes ? (
+                          <div className="flex items-center gap-2 py-4">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-sm text-muted-foreground">Loading episodes...</span>
+                          </div>
+                        ) : episodes.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                            {episodes.map((episode, idx) => (
+                              <Button
+                                key={idx}
+                                variant={selectedEpisode?.link === episode.link ? "default" : "outline"}
+                                size="sm"
+                                className="text-xs relative"
+                                onClick={() => handleEpisodeClick(episode)}
+                                disabled={fetchingVideoUrl && selectedEpisode?.link === episode.link}
+                              >
+                                {fetchingVideoUrl && selectedEpisode?.link === episode.link ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Play className="h-3 w-3 mr-1" />
+                                )}
+                                {extractEpisodeNumber(episode.title)}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground py-4">
+                            No episodes found for this quality
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* MDrive Episodes Section */}
+                    {selectedQuality && selectedQuality.url.includes('mdrive.today') && mdriveEpisodes.length > 0 && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-semibold mb-3">
+                          Episodes - {extractQuality(selectedQuality.quality)}
+                        </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                          {episodes.map((episode, idx) => (
+                          {mdriveEpisodes.map((episode, idx) => (
                             <Button
                               key={idx}
-                              variant={selectedEpisode?.link === episode.link ? "default" : "outline"}
+                              variant="outline"
                               size="sm"
                               className="text-xs relative"
-                              onClick={() => handleEpisodeClick(episode)}
-                              disabled={fetchingVideoUrl && selectedEpisode?.link === episode.link}
+                              onClick={() => {
+                                if (episode.hubCloudLinks.length > 0) {
+                                  handleHubCloudLinkClick(episode.hubCloudLinks[0])
+                                }
+                              }}
+                              disabled={episode.hubCloudLinks.length === 0}
                             >
-                              {fetchingVideoUrl && selectedEpisode?.link === episode.link ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Play className="h-3 w-3 mr-1" />
-                              )}
-                              {extractEpisodeNumber(episode.title)}
+                              <Play className="h-3 w-3 mr-1" />
+                              Episode {episode.episodeNumber.padStart(2, '0')}
                             </Button>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* HubCloud Direct Links Section (when no episodes found) - REMOVE THIS ENTIRE SECTION */}
+                  </div>
+                </div>
+
+                {/* Video URL Dialog */}
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                  <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>{selectedEpisode?.title || "Video"}</DialogTitle>
+                      <DialogDescription>
+                        {inferredTitle}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      {fetchingVideoUrl ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                            <p className="text-sm text-muted-foreground">Fetching video links...</p>
+                          </div>
+                        </div>
+                      ) : streamLinks.length > 0 ? (
+                        <div className="space-y-3">
+                          <label className="text-sm font-medium">Available Servers</label>
+                          {streamLinks.map((link, index) => (
+                            <div key={index} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  {link.server} ({link.type.toUpperCase()})
+                                </span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={link.link}
+                                  readOnly
+                                  className="flex-1 text-xs"
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => copyToClipboard(link.link, index)}
+                                  className="shrink-0"
+                                >
+                                  {copiedIndex === index ? (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="pt-2 text-xs text-muted-foreground">
+                            Copy the URL and open it in VLC or your preferred media player
+                          </div>
+                        </div>
                       ) : (
-                        <div className="text-sm text-muted-foreground py-4">
-                          No episodes found for this quality
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">No video links available</p>
                         </div>
                       )}
                     </div>
-                  )}
-
-                  {/* Remove the Stream Links Display section as it's no longer needed */}
-                </div>
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-[50vh]">
+                <p className="text-muted-foreground">No details found for this movie.</p>
               </div>
-
-              {/* Video URL Dialog */}
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>{selectedEpisode?.title || "Video"}</DialogTitle>
-                    <DialogDescription>
-                      {inferredTitle}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    {fetchingVideoUrl ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="h-8 w-8 animate-spin" />
-                          <p className="text-sm text-muted-foreground">Fetching video links...</p>
-                        </div>
-                      </div>
-                    ) : streamLinks.length > 0 ? (
-                      <div className="space-y-3">
-                        <label className="text-sm font-medium">Available Servers</label>
-                        {streamLinks.map((link, index) => (
-                          <div key={index} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-muted-foreground">
-                                {link.server} ({link.type.toUpperCase()})
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              <Input
-                                value={link.link}
-                                readOnly
-                                className="flex-1 text-xs"
-                              />
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => copyToClipboard(link.link, index)}
-                                className="shrink-0"
-                              >
-                                {copiedIndex === index ? (
-                                  <Check className="h-4 w-4 text-green-500" />
-                                ) : (
-                                  <Copy className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="pt-2 text-xs text-muted-foreground">
-                          Copy the URL and open it in VLC or your preferred media player
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground">No video links available</p>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-[50vh]">
-              <p className="text-muted-foreground">No details found for this movie.</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </SidebarInset>
+      </div>
     </SidebarProvider>
   )
 }

@@ -45,6 +45,7 @@ import { signOut } from "@/lib/auth"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Image from "next/image"
 import { Input } from "@/components/ui/input"
+import { DashboardNavbar } from "../layout"
 
 // Interface for the API response
 interface MoviePost {
@@ -207,35 +208,29 @@ function Navbar({
   onSearchChange: (query: string) => void,
 }) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className="-ml-1" />
-      <div className="flex flex-1 items-center justify-between gap-4">
-        <div className="flex items-center gap-4 flex-1">
-          {/* Search Bar */}
-          <div className="relative flex-1 max-w-sm md:max-w-md lg:max-w-lg">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search movies..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-10 pr-10 w-full"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange("")}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
+    <DashboardNavbar>
+      <div className="flex items-center gap-4 flex-1">
+        {/* Search Bar */}
+        <div className="relative flex-1 max-w-sm md:max-w-md lg:max-w-lg">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search movies..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-10 pr-10 w-full"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange("")}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
-    </header>
+    </DashboardNavbar>
   )
 }
 
@@ -433,57 +428,54 @@ export default function MoviesDashboard() {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <Navbar 
-          searchQuery={searchQuery} 
-          onSearchChange={setSearchQuery}
-        />
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
-          <div className="flex justify-between items-center mt-2">
-            <h1 className="text-2xl font-bold">Movies & TV Shows</h1>
-          </div>
-          
-          {loading && movies.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-5 lg:gap-6 mt-6">
-              {Array(10).fill(0).map((_, i) => (
-                <div key={i} className="flex flex-col">
-                  <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
-                  <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
-                </div>
-              ))}
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-              <p className="text-destructive mb-4">{error}</p>
-              <Button onClick={() => window.location.reload()}>Retry</Button>
-            </div>
-          ) : (
-            <>
-              <MoviesGrid posts={movies} searchQuery={searchQuery} isSearching={isSearching} />
-              
-              {!searchQuery && !isSearching && (
-                <div className="flex justify-center mt-8 mb-6">
-                  <Button 
-                    onClick={loadMore}
-                    disabled={loading}
-                    variant="outline"
-                    className="min-w-[200px]"
-                  >
-                    {loading ? (
-                      <>
-                        <span className="animate-spin mr-2">⟳</span>
-                        Loading...
-                      </>
-                    ) : "Load More"}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+    <>
+      <Navbar 
+        searchQuery={searchQuery} 
+        onSearchChange={setSearchQuery}
+      />
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
+        <div className="flex justify-between items-center mt-2">
+          <h1 className="text-2xl font-bold">Movies & TV Shows</h1>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        
+        {loading && movies.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-5 lg:gap-6 mt-6">
+            {Array(10).fill(0).map((_, i) => (
+              <div key={i} className="flex flex-col">
+                <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
+                <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+        ) : (
+          <>
+            <MoviesGrid posts={movies} searchQuery={searchQuery} isSearching={isSearching} />
+            
+            {!searchQuery && !isSearching && (
+              <div className="flex justify-center mt-8 mb-6">
+                <Button 
+                  onClick={loadMore}
+                  disabled={loading}
+                  variant="outline"
+                  className="min-w-[200px]"
+                >
+                  {loading ? (
+                    <>
+                      <span className="animate-spin mr-2">⟳</span>
+                      Loading...
+                    </>
+                  ) : "Load More"}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
   )
 }
