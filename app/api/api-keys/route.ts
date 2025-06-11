@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ApiKeyService } from '@/lib/services/api-key-service';
 import { UserService } from '@/lib/services/user-service';
+import { nanoid } from 'nanoid';
 
 export async function GET(request: Request) {
   try {
@@ -54,21 +55,46 @@ export async function POST(request: Request) {
 
     if (!userId || !keyName) {
       return NextResponse.json(
-        { success: false, error: 'User ID and key name are required' },
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const apiKey = await ApiKeyService.createApiKey(userId, keyName);
+    // Generate a unique ID for the API key
+    const keyId = nanoid();
+    
+    // Generate the API key value
+    const keyValue = `ak_${nanoid(48)}`;
 
-    return NextResponse.json({
-      success: true,
-      apiKey,
-    });
+    try {
+      const [newApiKey] = await db
+        .insert(apiKeysTable)
+        .values({
+          id: keyId, // Provide the generated ID
+          userId,
+          keyName,
+          keyValue,
+          isActive: true,
+          requestsUsed: 0,
+          requestsLimit: 1000,
+        })
+        .returning();
+
+      return NextResponse.json({
+        success: true,
+        apiKey: newApiKey,
+      });
+    } catch (dbError) {
+      console.error('Database error creating API key:', dbError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to create API key in database' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error creating API key:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create API key' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
