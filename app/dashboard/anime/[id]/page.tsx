@@ -155,6 +155,7 @@ function EpisodeCard({ episode, isMovie = false }: { episode: Episode, isMovie?:
 
     setLoading(true)
     try {
+      // The episode.link is now a path, pass it directly to the video API
       const response = await fetch(`/api/video?url=${encodeURIComponent(episode.link)}`, {
         headers: {
           'x-api-key': userApiKey

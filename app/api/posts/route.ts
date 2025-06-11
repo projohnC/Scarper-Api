@@ -36,6 +36,19 @@ function buildCategoryUrl(category?: string): string {
   return `${baseUrl}/category/language/hindi/`
 }
 
+// Function to extract path from full URL
+function extractPathFromUrl(fullUrl: string): string {
+  if (!fullUrl) return '';
+  try {
+    const url = new URL(fullUrl);
+    return url.pathname;
+  } catch {
+    // If URL parsing fails, try to extract path manually
+    const pathMatch = fullUrl.match(/https?:\/\/[^\/]+(.+)/);
+    return pathMatch ? pathMatch[1] : fullUrl;
+  }
+}
+
 // Function to fetch and parse HTML content from category page
 async function scrapeAnimeData(category?: string) {
   try {
@@ -74,8 +87,9 @@ async function scrapeAnimeData(category?: string) {
       // Extract the title
       const title = $element.find('h2.entry-title').text().trim();
 
-      // Extract the post URL
-      const postUrl = $element.find('a.lnk-blk').attr('href') || $element.find('a').attr('href');
+      // Extract the post URL and convert to path only
+      const fullPostUrl = $element.find('a.lnk-blk').attr('href') || $element.find('a').attr('href');
+      const postUrl = extractPathFromUrl(fullPostUrl || '');
 
       // Only add posts with all required fields
       if (imageUrl && title && postUrl) {
@@ -144,10 +158,11 @@ async function searchAnimeData(searchQuery: string, category?: string) {
                    $element.find('h2 a').text().trim() ||
                    $element.find('h3 a').text().trim();
 
-      // Try multiple selectors for post URL
-      const postUrl = $element.find('a.lnk-blk').attr('href') || 
-                     $element.find('a').attr('href') ||
-                     $element.find('.entry-title a').attr('href');
+      // Try multiple selectors for post URL and convert to path only
+      const fullPostUrl = $element.find('a.lnk-blk').attr('href') || 
+                         $element.find('a').attr('href') ||
+                         $element.find('.entry-title a').attr('href');
+      const postUrl = extractPathFromUrl(fullPostUrl || '');
 
       // Only add posts with all required fields
       if (imageUrl && title && postUrl) {

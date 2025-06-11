@@ -108,12 +108,14 @@ function AnimeGrid({ posts, searchQuery, isSearching }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-5 lg:gap-6 mt-2">
       {filteredPosts.map((post, index) => {
-        // Detect if this is a movie or series based on URL
+        // Detect if this is a movie or series based on URL path
         const isMovie = post.postUrl.includes('/movie/');
-        // Extract the ID from the URL for our internal routing
-        const urlParts = post.postUrl.split('/');
-        // The ID is the second-to-last part in the URL
-        const id = urlParts[urlParts.length - 2] || '';
+        
+        // Extract the ID from the URL path
+        const pathParts = post.postUrl.split('/').filter(Boolean);
+        // For paths like /series/anime-name/ or /movie/movie-name/, get the last meaningful part
+        const id = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2] || '';
+        
         // Generate the appropriate route based on content type
         const linkUrl = `/dashboard/anime/${id}`;
 

@@ -78,6 +78,19 @@ interface MovieDetails {
   isMovie: boolean;
 }
 
+// Function to extract path from full URL
+function extractPathFromUrl(fullUrl: string): string {
+  if (!fullUrl) return '';
+  try {
+    const url = new URL(fullUrl);
+    return url.pathname;
+  } catch {
+    // If URL parsing fails, try to extract path manually
+    const pathMatch = fullUrl.match(/https?:\/\/[^\/]+(.+)/);
+    return pathMatch ? pathMatch[1] : fullUrl;
+  }
+}
+
 // Function to fetch episodes for a specific season
 async function fetchSeasonEpisodes(postId: string, seasonNumber: number): Promise<Episode[]> {
   try {
@@ -107,12 +120,13 @@ async function fetchSeasonEpisodes(postId: string, seasonNumber: number): Promis
     // Parse each episode
     $('article.episodes').each((_, el) => {
       const article = $(el);
-      const link = article.find('a.lnk-blk').attr('href');
+      const fullLink = article.find('a.lnk-blk').attr('href');
+      const link = extractPathFromUrl(fullLink || '');
       const title = article.find('h2.entry-title').text().trim();
       const episodeNumber = parseInt(article.find('span.num-epi').text().trim(), 10);
       const imageUrl = normalizeImageUrl(article.find('figure img').attr('src'));
       
-      // Extract episode ID from the link
+      // Extract episode ID from the link path
       const id = link ? link.split('/').filter(Boolean).pop() : '';
       
       episodes.push({
@@ -175,7 +189,8 @@ async function scrapeAnimeDetails(id: string, fetchAllSeasons = false): Promise<
     
     // Extract play button data
     const playButtonElement = $('a[style*="display: flex; align-items: center; justify-content: center;"]').first();
-    const latestEpisodeUrl = playButtonElement.attr('href');
+    const fullLatestEpisodeUrl = playButtonElement.attr('href');
+    const latestEpisodeUrl = extractPathFromUrl(fullLatestEpisodeUrl || '');
     const latestEpisodeText = playButtonElement.text().trim();
     
     // Extract seasons, episodes, duration, and year
@@ -298,7 +313,8 @@ async function scrapeAnimeDetails(id: string, fetchAllSeasons = false): Promise<
     // Try to find all episode links and extract all episodes
     $('a[href*="/episode/"]').each((_, el) => {
       const episodeElement = $(el);
-      const href = episodeElement.attr('href');
+      const fullHref = episodeElement.attr('href');
+      const href = extractPathFromUrl(fullHref || '');
       const text = episodeElement.text().trim();
       
       // Skip if we already added this episode or if it's not a valid link
@@ -562,7 +578,7 @@ export async function GET(
       const movieEpisode: Episode = {
         id: id,
         title: movieDetails.title,
-        link: `https://animesalt.cc/movie/${id}/`,
+        link: `/movie/${id}/`, // Return path only
         season: 1,
         number: 1,
         imageUrl: movieDetails.imageUrl
@@ -594,7 +610,7 @@ export async function GET(
         episodes: [movieEpisode] // Return the movie as a single episode
       });
     }
-    
+
     // Handle series requests (existing logic)
     if (seasonParam && !fetchAllSeasons) {
       console.log(`Fetching episodes for specific season: ${seasonParam}`);

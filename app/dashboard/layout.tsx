@@ -75,6 +75,11 @@ const navItems = [
     url: "/dashboard/api-keys",
     icon: Key,
   },
+  {
+    title: "Docs",
+    url: "/dashboard/docs",
+    icon: FileText,
+  }
 ]
 
 function AppSidebar() {

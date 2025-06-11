@@ -19,6 +19,24 @@ interface VideoResponse {
   error?: string;
 }
 
+// Function to construct full URL from path if needed
+function constructFullUrl(urlOrPath: string): string {
+  if (!urlOrPath) return '';
+  
+  // If it's already a full URL, return as is
+  if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+    return urlOrPath;
+  }
+  
+  // If it's a path, construct the full URL
+  if (urlOrPath.startsWith('/')) {
+    return `https://animesalt.cc${urlOrPath}`;
+  }
+  
+  // If it doesn't start with /, assume it's a path that needs leading slash
+  return `https://animesalt.cc/${urlOrPath}`;
+}
+
 export async function GET(request: Request): Promise<NextResponse> {
   try {
     // Validate API key
@@ -29,14 +47,17 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     // Get the URL parameter
     const { searchParams } = new URL(request.url);
-    const episodeUrl = searchParams.get('url');
+    const episodeUrlOrPath = searchParams.get('url');
 
-    if (!episodeUrl) {
+    if (!episodeUrlOrPath) {
       return NextResponse.json(
         { success: false, error: 'URL parameter is required' },
         { status: 400 }
       );
     }
+
+    // Construct full URL from path if needed
+    const episodeUrl = constructFullUrl(episodeUrlOrPath);
 
     // Encode the URL for the external API request
     const encodedUrl = encodeURIComponent(episodeUrl);
