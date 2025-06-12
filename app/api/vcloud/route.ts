@@ -23,53 +23,98 @@ interface VCloudResponse {
   providedDomain?: string;
 }
 
+// Add User-Agent rotation to avoid detection
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+];
+
+function getRandomUserAgent(): string {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+function getRequestHeaders(referer?: string): HeadersInit {
+  return {
+    'User-Agent': getRandomUserAgent(),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+    ...(referer && { 'Referer': referer })
+  };
+}
+
 async function extractVCloudUrl(vcloudUrl: string): Promise<string | null> {
   try {
     console.log(`Extracting VCloud URL from: ${vcloudUrl}`);
     
-    const response = await fetch(vcloudUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://vcloud.lol/',
-      },
-      cache: 'no-cache'
-    });
+    // Add retry logic with different approaches
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await fetch(vcloudUrl, {
+          headers: getRequestHeaders(),
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000) // 15 second timeout
+        });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch VCloud page: ${response.status}`);
-    }
+        if (!response.ok) {
+          if (response.status === 403 && attempt < 3) {
+            console.log(`Attempt ${attempt} failed with 403, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
+            continue;
+          }
+          throw new Error(`Failed to fetch VCloud page: ${response.status}`);
+        }
 
-    const html = await response.text();
-    
-    // Extract the URL from the JavaScript variable
-    // Looking for: var url = 'https://...';
-    const urlMatch = html.match(/var\s+url\s*=\s*['"`]([^'"`]+)['"`]/);
-    
-    if (urlMatch && urlMatch[1]) {
-      const extractedUrl = urlMatch[1];
-      console.log(`Successfully extracted URL: ${extractedUrl}`);
-      return extractedUrl;
+        const html = await response.text();
+        
+        // Extract the URL from the JavaScript variable
+        const urlMatch = html.match(/var\s+url\s*=\s*['"`]([^'"`]+)['"`]/);
+        
+        if (urlMatch && urlMatch[1]) {
+          const extractedUrl = urlMatch[1];
+          console.log(`Successfully extracted URL: ${extractedUrl}`);
+          return extractedUrl;
+        }
+        
+        // Alternative pattern matching
+        const altUrlMatch = html.match(/url\s*=\s*['"`]([^'"`]+)['"`]/);
+        if (altUrlMatch && altUrlMatch[1]) {
+          const extractedUrl = altUrlMatch[1];
+          console.log(`Successfully extracted URL (alternative pattern): ${extractedUrl}`);
+          return extractedUrl;
+        }
+        
+        // Look for hubcloud.php URLs
+        const hubcloudMatch = html.match(/['"`](https?:\/\/[^'"`]*hubcloud\.php[^'"`]*)['"`]/);
+        if (hubcloudMatch && hubcloudMatch[1]) {
+          const extractedUrl = hubcloudMatch[1];
+          console.log(`Successfully extracted hubcloud URL: ${extractedUrl}`);
+          return extractedUrl;
+        }
+        
+        console.log('No URL found in the VCloud page');
+        return null;
+
+      } catch (fetchError) {
+        if (attempt === 3) {
+          throw fetchError;
+        }
+        console.log(`Attempt ${attempt} failed:`, fetchError);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
     }
     
-    // Alternative pattern matching in case the format is slightly different
-    const altUrlMatch = html.match(/url\s*=\s*['"`]([^'"`]+)['"`]/);
-    if (altUrlMatch && altUrlMatch[1]) {
-      const extractedUrl = altUrlMatch[1];
-      console.log(`Successfully extracted URL (alternative pattern): ${extractedUrl}`);
-      return extractedUrl;
-    }
-    
-    // Look for any hubcloud.php URLs in the page
-    const hubcloudMatch = html.match(/['"`](https?:\/\/[^'"`]*hubcloud\.php[^'"`]*)['"`]/);
-    if (hubcloudMatch && hubcloudMatch[1]) {
-      const extractedUrl = hubcloudMatch[1];
-      console.log(`Successfully extracted hubcloud URL: ${extractedUrl}`);
-      return extractedUrl;
-    }
-    
-    console.log('No URL found in the VCloud page');
     return null;
   } catch (error) {
     console.error('Error extracting VCloud URL:', error);
@@ -81,115 +126,130 @@ async function extractDownloadLinks(intermediateUrl: string): Promise<DownloadLi
   try {
     console.log(`Fetching download links from: ${intermediateUrl}`);
     
-    const response = await fetch(intermediateUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://vcloud.lol/',
-      },
-      cache: 'no-cache'
-    });
+    // Add retry logic for download links too
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await fetch(intermediateUrl, {
+          headers: getRequestHeaders('https://vcloud.lol/'),
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000)
+        });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch download page: ${response.status}`);
-    }
-
-    const html: string = await response.text();
-    const downloadLinks: DownloadLink[] = [];
-
-    // Extract 10Gbps Server link (btn-danger)
-    const gbpsMatch = html.match(/<a[^>]+href="([^"]+)"[^>]*class="[^"]*btn[^"]*btn-danger[^"]*"[^>]*>[\s\S]*?Download[\s\S]*?\[Server\s*:\s*10Gbps\]/i);
-    if (gbpsMatch && gbpsMatch[1]) {
-      downloadLinks.push({
-        url: gbpsMatch[1],
-        server: '10Gbps',
-        type: 'download',
-        resumeSupported: false,
-        description: 'High-speed server (Resume not supported)'
-      });
-    }
-
-    // Extract Server 1 link (btn-success)
-    const server1Match = html.match(/<a[^>]+href="([^"]+)"[^>]*class="[^"]*btn[^"]*btn-success[^"]*"[^>]*>[\s\S]*?Download[\s\S]*?\[Server\s*:\s*1\]/i);
-    if (server1Match && server1Match[1]) {
-      downloadLinks.push({
-        url: server1Match[1],
-        server: 'Server 1',
-        type: 'download',
-        resumeSupported: true,
-        description: 'Standard download server'
-      });
-    }
-
-    // Define URLs to exclude from results
-    const excludedUrls: string[] = [
-      'https://www.google.com/search?q=idm+dowload+manager',
-      'https://t.me/+_CVU9nIEj5oxYzc9'
-    ];
-
-    // Define domains/patterns to exclude
-    const excludedPatterns: string[] = [
-      'google.com/search',
-      't.me/',
-      'telegram.me/',
-      'whatsapp.com',
-      'facebook.com',
-      'twitter.com',
-      'instagram.com'
-    ];
-
-    // Extract any other download links (looking for direct URLs in href attributes)
-    const allLinkMatches: RegExpMatchArray | null = html.match(/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*(?:class="[^"]*btn[^"]*")?[^>]*>[\s\S]*?(?:Download|download)/gi);
-    if (allLinkMatches) {
-      allLinkMatches.forEach((match: string, index: number) => {
-        const urlMatch = match.match(/href="([^"]+)"/);
-        if (urlMatch && urlMatch[1]) {
-          const url: string = urlMatch[1];
-          
-          // Skip if URL is in excluded list
-          if (excludedUrls.includes(url)) {
-            return;
+        if (!response.ok) {
+          if (response.status === 403 && attempt < 3) {
+            console.log(`Download links attempt ${attempt} failed with 403, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            continue;
           }
-          
-          // Skip if URL matches any excluded pattern
-          if (excludedPatterns.some(pattern => url.includes(pattern))) {
-            return;
-          }
-          
-          // Skip if we already have this URL
-          if (!downloadLinks.some((link: DownloadLink) => link.url === url)) {
-            // Determine server type based on URL or content
-            let serverType: string = 'Unknown';
-            let resumeSupported: boolean = true;
-            
-            if (url.includes('gpdl2.hubcdn.fans') || match.includes('10Gbps')) {
-              serverType = '10Gbps';
-              resumeSupported = false;
-            } else if (url.includes('pub-') && url.includes('.r2.dev')) {
-              serverType = 'R2 CDN';
-            } else if (url.includes('ampproject.org')) {
-              serverType = 'AMP Redirect';
-              resumeSupported = false;
-            }
-            
-            // Only add if it's a valid download link (not social media, search engines, etc.)
-            if (serverType !== 'Unknown' || url.includes('download') || url.includes('.mkv') || url.includes('.mp4') || url.includes('.avi')) {
-              downloadLinks.push({
-                url: url,
-                server: serverType,
-                type: 'download',
-                resumeSupported: resumeSupported,
-                description: `${serverType} download link`
-              });
-            }
-          }
+          throw new Error(`Failed to fetch download page: ${response.status}`);
         }
-      });
-    }
 
-    console.log(`Successfully extracted ${downloadLinks.length} download links`);
-    return downloadLinks;
+        const html: string = await response.text();
+        const downloadLinks: DownloadLink[] = [];
+
+        // Extract 10Gbps Server link (btn-danger)
+        const gbpsMatch = html.match(/<a[^>]+href="([^"]+)"[^>]*class="[^"]*btn[^"]*btn-danger[^"]*"[^>]*>[\s\S]*?Download[\s\S]*?\[Server\s*:\s*10Gbps\]/i);
+        if (gbpsMatch && gbpsMatch[1]) {
+          downloadLinks.push({
+            url: gbpsMatch[1],
+            server: '10Gbps',
+            type: 'download',
+            resumeSupported: false,
+            description: 'High-speed server (Resume not supported)'
+          });
+        }
+
+        // Extract Server 1 link (btn-success)
+        const server1Match = html.match(/<a[^>]+href="([^"]+)"[^>]*class="[^"]*btn[^"]*btn-success[^"]*"[^>]*>[\s\S]*?Download[\s\S]*?\[Server\s*:\s*1\]/i);
+        if (server1Match && server1Match[1]) {
+          downloadLinks.push({
+            url: server1Match[1],
+            server: 'Server 1',
+            type: 'download',
+            resumeSupported: true,
+            description: 'Standard download server'
+          });
+        }
+
+        // Define URLs to exclude from results
+        const excludedUrls: string[] = [
+          'https://www.google.com/search?q=idm+dowload+manager',
+          'https://t.me/+_CVU9nIEj5oxYzc9'
+        ];
+
+        // Define domains/patterns to exclude
+        const excludedPatterns: string[] = [
+          'google.com/search',
+          't.me/',
+          'telegram.me/',
+          'whatsapp.com',
+          'facebook.com',
+          'twitter.com',
+          'instagram.com'
+        ];
+
+        // Extract any other download links
+        const allLinkMatches: RegExpMatchArray | null = html.match(/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*(?:class="[^"]*btn[^"]*")?[^>]*>[\s\S]*?(?:Download|download)/gi);
+        if (allLinkMatches) {
+          allLinkMatches.forEach((match: string, index: number) => {
+            const urlMatch = match.match(/href="([^"]+)"/);
+            if (urlMatch && urlMatch[1]) {
+              const url: string = urlMatch[1];
+              
+              // Skip if URL is in excluded list
+              if (excludedUrls.includes(url)) {
+                return;
+              }
+              
+              // Skip if URL matches any excluded pattern
+              if (excludedPatterns.some(pattern => url.includes(pattern))) {
+                return;
+              }
+              
+              // Skip if we already have this URL
+              if (!downloadLinks.some((link: DownloadLink) => link.url === url)) {
+                // Determine server type based on URL or content
+                let serverType: string = 'Unknown';
+                let resumeSupported: boolean = true;
+                
+                if (url.includes('gpdl2.hubcdn.fans') || match.includes('10Gbps')) {
+                  serverType = '10Gbps';
+                  resumeSupported = false;
+                } else if (url.includes('pub-') && url.includes('.r2.dev')) {
+                  serverType = 'R2 CDN';
+                } else if (url.includes('ampproject.org')) {
+                  serverType = 'AMP Redirect';
+                  resumeSupported = false;
+                }
+                
+                // Only add if it's a valid download link
+                if (serverType !== 'Unknown' || url.includes('download') || url.includes('.mkv') || url.includes('.mp4') || url.includes('.avi')) {
+                  downloadLinks.push({
+                    url: url,
+                    server: serverType,
+                    type: 'download',
+                    resumeSupported: resumeSupported,
+                    description: `${serverType} download link`
+                  });
+                }
+              }
+            }
+          });
+        }
+
+        console.log(`Successfully extracted ${downloadLinks.length} download links`);
+        return downloadLinks;
+
+      } catch (fetchError) {
+        if (attempt === 3) {
+          throw fetchError;
+        }
+        console.log(`Download links attempt ${attempt} failed:`, fetchError);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    
+    return [];
   } catch (error) {
     console.error('Error extracting download links:', error);
     throw error;
