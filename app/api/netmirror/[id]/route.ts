@@ -101,10 +101,9 @@ async function fetchStreamingLinks(streamingUrl: string): Promise<StreamingQuali
     // Extract main URL
     const mainUrlMatch = scriptContent.match(/url:\s*'([^']+)'/);
     if (mainUrlMatch) {
-      const proxiedUrl = `/api/netmirror/proxy?url=${encodeURIComponent(mainUrlMatch[1])}`;
       qualities.push({
         quality: 'Default',
-        url: proxiedUrl,
+        url: mainUrlMatch[1],
         default: true
       });
     }
@@ -119,10 +118,9 @@ async function fetchStreamingLinks(streamingUrl: string): Promise<StreamingQuali
       
       for (const match of qualityMatches) {
         const isDefault = qualityContent.includes('default: true') && match.index !== undefined;
-        const proxiedUrl = `/api/netmirror/proxy?url=${encodeURIComponent(match[2])}`;
         qualities.push({
           quality: match[1],
-          url: proxiedUrl,
+          url: match[2],
           default: isDefault
         });
       }
