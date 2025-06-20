@@ -21,11 +21,20 @@ interface Quality {
   zipUrl?: string;
 }
 
+interface MovieDownload {
+  title: string;
+  url: string;
+  size: string;
+  quality: string;
+}
+
 interface StreamData {
   title: string;
   plot: string;
   poster: string;
+  type: 'movie' | 'series';
   qualities: Quality[];
+  movieDownloads?: MovieDownload[];
 }
 
 interface StreamResponse {
@@ -81,6 +90,39 @@ function extractSizeFromHeader(text: string): string | null {
   return sizeMatch ? sizeMatch[1] : null;
 }
 
+function extractMovieDownload(element: any): MovieDownload | null {
+  const $element = element;
+  const text = $element.text().trim();
+  
+  // Extract title and size from the paragraph text
+  const titleMatch = text.match(/^([^[]+)/);
+  const sizeMatch = text.match(/\[([^\]]*(?:GB|MB|TB)[^\]]*)\]/i);
+  
+  if (!titleMatch) return null;
+  
+  const title = titleMatch[1].trim();
+  const size = sizeMatch ? sizeMatch[1] : 'Unknown';
+  
+  // Extract quality from title
+  let quality = 'Unknown';
+  if (title.includes('2160p')) quality = '2160p';
+  else if (title.includes('1080p')) quality = '1080p';
+  else if (title.includes('720p')) quality = '720p';
+  
+  // Find the download link in the next element
+  const nextElement = $element.next();
+  const downloadLink = nextElement.find('a.maxbutton-download-g-drive').attr('href');
+  
+  if (!downloadLink) return null;
+  
+  return {
+    title,
+    url: downloadLink,
+    size,
+    quality
+  };
+}
+
 async function scrapeStreamData(url: string): Promise<StreamData | null> {
   try {
     console.log(`Fetching stream data from: ${url}`);
@@ -108,7 +150,14 @@ async function scrapeStreamData(url: string): Promise<StreamData | null> {
     // Extract plot from pre tag
     const plot = $('.entry-content pre').first().text().trim().replace(/Series Plot-\s*/, '') || 'No description available';
 
+    // Determine if it's a movie or series
+    const hasEpisodes = $('.entry-content').find('a.maxbutton-gdrive-episode').length > 0;
+    const hasMovieDownloads = $('.entry-content').find('a.maxbutton-download-g-drive').length > 0;
+    
+    const type: 'movie' | 'series' = hasEpisodes ? 'series' : 'movie';
+    
     const qualities: Quality[] = [];
+    const movieDownloads: MovieDownload[] = [];
     let currentQuality: Quality | null = null;
     let currentSeason: Season | null = null;
 
@@ -118,88 +167,106 @@ async function scrapeStreamData(url: string): Promise<StreamData | null> {
       const text = $element.text().trim();
       const tagName = element.tagName?.toLowerCase();
 
-      // Check for season headers
-      if (text.includes('SEASON') && (tagName === 'pre' || $element.find('strong').length > 0)) {
-        const seasonNumber = extractSeasonNumber(text);
-        currentSeason = {
-          seasonNumber,
-          episodes: []
-        };
-        return;
-      }
-
-      // Check for quality headers
-      if ((text.includes('2160p') || text.includes('1080p') || text.includes('4k')) && 
-          (tagName === 'p' || $element.find('strong').length > 0) &&
-          !text.includes('Episode')) {
-        
-        if (currentQuality) {
-          qualities.push(currentQuality);
+      if (type === 'series') {
+        // Handle TV series logic (existing code)
+        // Check for season headers
+        if (text.includes('SEASON') && (tagName === 'pre' || $element.find('strong').length > 0)) {
+          const seasonNumber = extractSeasonNumber(text);
+          currentSeason = {
+            seasonNumber,
+            episodes: []
+          };
+          return;
         }
 
-        const qualityName = extractQualityInfo(text);
-        const sizeInfo = extractSizeFromHeader(text);
-
-        currentQuality = {
-          quality: qualityName,
-          seasons: [],
-          totalSize: sizeInfo || undefined
-        };
-
-        // Reset current season when new quality starts
-        currentSeason = null;
-        return;
-      }
-
-      // Process episode and zip buttons
-      $element.find('a.maxbutton-gdrive-episode, a.maxbutton-gdrive-zip').each((_, link) => {
-        const $link = $(link);
-        const href = $link.attr('href') || '';
-        const buttonText = $link.find('.mb-text').text().trim();
-
-        if (buttonText.includes('Episode')) {
-          const episode = extractEpisodeInfo(buttonText, href);
-          if (episode && currentQuality) {
-            // If no current season, create a default one
-            if (!currentSeason) {
-              currentSeason = {
-                seasonNumber: '1',
-                episodes: []
-              };
-              currentQuality.seasons.push(currentSeason);
-            }
-
-            currentSeason.episodes.push(episode);
-          }
-        } else if (buttonText.includes('Zip') || buttonText.includes('Pack')) {
+        // Check for quality headers
+        if ((text.includes('2160p') || text.includes('1080p') || text.includes('4k')) && 
+            (tagName === 'p' || $element.find('strong').length > 0) &&
+            !text.includes('Episode')) {
+          
           if (currentQuality) {
-            currentQuality.zipUrl = href;
+            qualities.push(currentQuality);
+          }
+
+          const qualityName = extractQualityInfo(text);
+          const sizeInfo = extractSizeFromHeader(text);
+
+          currentQuality = {
+            quality: qualityName,
+            seasons: [],
+            totalSize: sizeInfo || undefined
+          };
+
+          // Reset current season when new quality starts
+          currentSeason = null;
+          return;
+        }
+
+        // Process episode and zip buttons
+        $element.find('a.maxbutton-gdrive-episode, a.maxbutton-gdrive-zip').each((_, link) => {
+          const $link = $(link);
+          const href = $link.attr('href') || '';
+          const buttonText = $link.find('.mb-text').text().trim();
+
+          if (buttonText.includes('Episode')) {
+            const episode = extractEpisodeInfo(buttonText, href);
+            if (episode && currentQuality) {
+              // If no current season, create a default one
+              if (!currentSeason) {
+                currentSeason = {
+                  seasonNumber: '1',
+                  episodes: []
+                };
+                currentQuality.seasons.push(currentSeason);
+              }
+
+              currentSeason.episodes.push(episode);
+            }
+          } else if (buttonText.includes('Zip') || buttonText.includes('Pack')) {
+            if (currentQuality) {
+              currentQuality.zipUrl = href;
+            }
+          }
+        });
+
+        // Add season to quality if we have episodes
+        if (currentSeason && currentSeason.episodes.length > 0 && currentQuality) {
+          const existingSeason = currentQuality.seasons.find(s => s.seasonNumber === currentSeason!.seasonNumber);
+          if (!existingSeason) {
+            currentQuality.seasons.push({ ...currentSeason });
           }
         }
-      });
-
-      // Add season to quality if we have episodes
-      if (currentSeason && currentSeason.episodes.length > 0 && currentQuality) {
-        const existingSeason = currentQuality.seasons.find(s => s.seasonNumber === currentSeason!.seasonNumber);
-        if (!existingSeason) {
-          currentQuality.seasons.push({ ...currentSeason });
+      } else {
+        // Handle movie logic
+        if (tagName === 'p' && text.includes('GB') && text.includes('[') && text.includes(']')) {
+          const movieDownload = extractMovieDownload($element);
+          if (movieDownload) {
+            movieDownloads.push(movieDownload);
+          }
         }
       }
     });
 
-    // Add the last quality
-    if (currentQuality) {
+    // Add the last quality for series
+    if (type === 'series' && currentQuality) {
       qualities.push(currentQuality);
     }
 
-    console.log(`Extracted ${qualities.length} qualities`);
+    console.log(`Extracted ${type === 'series' ? qualities.length + ' qualities' : movieDownloads.length + ' movie downloads'}`);
     
-    return {
+    const result: StreamData = {
       title,
       plot,
       poster,
+      type,
       qualities: qualities.filter(q => q.seasons.length > 0 || q.zipUrl)
     };
+
+    if (type === 'movie') {
+      result.movieDownloads = movieDownloads;
+    }
+
+    return result;
 
   } catch (error) {
     console.error('Error scraping stream data:', error);
@@ -233,11 +300,25 @@ export async function GET(request: NextRequest): Promise<NextResponse<StreamResp
 
     const streamData = await scrapeStreamData(streamUrl);
 
-    if (!streamData || streamData.qualities.length === 0) {
+    if (!streamData) {
       return NextResponse.json<StreamResponse>({
         success: false,
         error: 'No stream data found',
-        message: 'No episodes or streaming links found at the provided URL',
+        message: 'Failed to extract any data from the provided URL',
+        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
+      });
+    }
+
+    // Check if we have any content (either episodes or movie downloads)
+    const hasContent = streamData.type === 'series' 
+      ? streamData.qualities.length > 0 
+      : streamData.movieDownloads && streamData.movieDownloads.length > 0;
+
+    if (!hasContent) {
+      return NextResponse.json<StreamResponse>({
+        success: false,
+        error: 'No content found',
+        message: `No ${streamData.type === 'series' ? 'episodes or streaming links' : 'movie downloads'} found at the provided URL`,
         remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
       });
     }
