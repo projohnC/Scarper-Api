@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import { DashboardNavbar } from "../layout"
 import { Card, CardContent } from "@/components/ui/card"
+import { RequireApiKey } from '@/components/require-api-key';
 
 // Interface for the API response
 interface MoviePost {
@@ -355,52 +356,54 @@ export default function MoviesPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar 
-        searchQuery={searchQuery} 
-        onSearchChange={setSearchQuery}
-      />
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
-        {/* Removed the duplicate title since it's now in the Navbar */}
-        
-        {loading && movies.length === 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-5 lg:gap-6 mt-6">
-            {Array(10).fill(0).map((_, i) => (
-              <div key={i} className="flex flex-col">
-                <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
-                <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Retry</Button>
-          </div>
-        ) : (
-          <>
-            <MoviesGrid posts={movies} searchQuery={searchQuery} isSearching={isSearching} />
-            
-            {!searchQuery && !isSearching && (
-              <div className="flex justify-center mt-8 mb-6">
-                <Button 
-                  onClick={loadMore}
-                  disabled={loading}
-                  variant="outline"
-                  className="min-w-[200px]"
-                >
-                  {loading ? (
-                    <>
-                      <span className="animate-spin mr-2">⟳</span>
-                      Loading...
-                    </>
-                  ) : "Load More"}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+    <RequireApiKey>
+      <div className="flex flex-col min-h-screen">
+        <Navbar 
+          searchQuery={searchQuery} 
+          onSearchChange={setSearchQuery}
+        />
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
+          {/* Removed the duplicate title since it's now in the Navbar */}
+          
+          {loading && movies.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-5 lg:gap-6 mt-6">
+              {Array(10).fill(0).map((_, i) => (
+                <div key={i} className="flex flex-col">
+                  <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
+                  <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+              <p className="text-destructive mb-4">{error}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          ) : (
+            <>
+              <MoviesGrid posts={movies} searchQuery={searchQuery} isSearching={isSearching} />
+              
+              {!searchQuery && !isSearching && (
+                <div className="flex justify-center mt-8 mb-6">
+                  <Button 
+                    onClick={loadMore}
+                    disabled={loading}
+                    variant="outline"
+                    className="min-w-[200px]"
+                  >
+                    {loading ? (
+                      <>
+                        <span className="animate-spin mr-2">⟳</span>
+                        Loading...
+                      </>
+                    ) : "Load More"}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </RequireApiKey>
   )
 }

@@ -35,7 +35,19 @@ export function LoginForm({
   // Check if user is already logged in
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/dashboard/anime")
+      // Check if user has API keys before redirecting
+      fetch(`/api/api-keys?userId=${user.uid}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.apiKeys?.length > 0) {
+            router.push("/dashboard/anime")
+          } else {
+            router.push("/dashboard/api-keys")
+          }
+        })
+        .catch(() => {
+          router.push("/dashboard/api-keys")
+        })
     }
   }, [user, authLoading, router])
 

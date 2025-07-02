@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { RequireApiKey } from '@/components/require-api-key';
 
 const categories = [
   { id: "all", name: "All", url: "" },
@@ -356,32 +357,34 @@ export default function AnimeDashboard() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <Navbar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedCategory={selectedCategory}
-        onCategoryChange={handleCategoryChange}
-      />
-      <div className="flex flex-1 flex-col gap-4 p-2 pt-2">
-        {loading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-5 lg:gap-6 mt-2">
-            {Array(12).fill(0).map((_, i) => (
-              <div key={i} className="flex flex-col">
-                <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
-                <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Retry</Button>
-          </div>
-        ) : (
-          <AnimeGrid posts={anime} searchQuery={searchQuery} isSearching={isSearching} />
-        )}
+    <RequireApiKey>
+      <div className="flex flex-1 flex-col">
+        <Navbar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedCategory={selectedCategory}
+          onCategoryChange={handleCategoryChange}
+        />
+        <div className="flex flex-1 flex-col gap-4 p-2 pt-2">
+          {loading ? (
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-5 lg:gap-6 mt-2">
+              {Array(12).fill(0).map((_, i) => (
+                <div key={i} className="flex flex-col">
+                  <div className="aspect-[2/3] bg-muted animate-pulse rounded-lg" />
+                  <div className="h-2 sm:h-3 md:h-4 bg-muted animate-pulse rounded w-3/4 mt-1 sm:mt-2 mx-auto" />
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+              <p className="text-destructive mb-4">{error}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          ) : (
+            <AnimeGrid posts={anime} searchQuery={searchQuery} isSearching={isSearching} />
+          )}
+        </div>
       </div>
-    </div>
+    </RequireApiKey>
   );
 }
