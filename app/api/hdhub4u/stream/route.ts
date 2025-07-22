@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/middleware/api-auth';
 
 interface StreamLink {
   server: string;
@@ -369,10 +368,6 @@ async function hdhub4uGetStream(link: string): Promise<StreamLink[]> {
 export async function GET(request: NextRequest): Promise<NextResponse<HDHub4uStreamResponse>> {
   try {
     // Validate API key
-    const authResult = await validateApiKey(request);
-    if (!authResult.isValid) {
-      return createUnauthorizedResponse(authResult.error || 'Invalid API key') as NextResponse<HDHub4uStreamResponse>;
-    }
 
     const { searchParams } = new URL(request.url);
     const episodeUrl = searchParams.get('url');
@@ -405,7 +400,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<HDHub4uStr
         success: false,
         error: 'No stream links found',
         message: 'No streaming links could be extracted from the provided URL',
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
       });
     }
 
@@ -415,7 +409,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<HDHub4uStr
         episodeUrl,
         streamLinks
       },
-      remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
     });
 
   } catch (error: unknown) {

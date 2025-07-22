@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { load } from 'cheerio'
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/middleware/api-auth'
 
 async function extractDirectDownloadLink(url: string) {
   try {
@@ -39,12 +38,6 @@ async function extractDirectDownloadLink(url: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Validate API key
-    const authResult = await validateApiKey(request);
-    if (!authResult.isValid) {
-      return createUnauthorizedResponse(authResult.error || 'Invalid API key');
-    }
-
     const { searchParams } = new URL(request.url)
     const url = searchParams.get('url')
     
@@ -90,15 +83,11 @@ export async function GET(request: NextRequest) {
       
       return NextResponse.json({
         ...data,
-        links: processedLinks,
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
+        links: processedLinks
       })
     }
     
-    return NextResponse.json({
-      ...data,
-      remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
-    })
+    return NextResponse.json(data)
   } catch (error) {
     console.error('Error fetching from hubcloud API:', error)
     return NextResponse.json(

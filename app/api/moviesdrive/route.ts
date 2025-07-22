@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { load } from 'cheerio';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/middleware/api-auth';
 
 // Function to normalize image URLs - handling protocol-relative URLs
 function normalizeImageUrl(url: string | undefined): string | undefined {
@@ -13,8 +12,8 @@ function normalizeImageUrl(url: string | undefined): string | undefined {
 async function scrapeMoviesDriveData(page: number = 1) {
   try {
     const url = page === 1 
-      ? 'https://moviesdrive.click/' 
-      : `https://moviesdrive.click/page/${page}/`;
+      ? 'https://moviesdrive.fans/' 
+      : `https://moviesdrive.fans/page/${page}/`;
     
     console.log(`Fetching content from: ${url}`);
 
@@ -100,7 +99,7 @@ async function scrapeMoviesDriveData(page: number = 1) {
 // Function to search content - needs similar updates
 async function searchMoviesDriveData(searchQuery: string) {
   try {
-    const searchUrl = `https://moviesdrive.click/?s=${encodeURIComponent(searchQuery)}`;
+    const searchUrl = `https://moviesdrive.fans/?s=${encodeURIComponent(searchQuery)}`;
     
     const response = await fetch(searchUrl, {
       cache: 'no-cache',
@@ -155,11 +154,7 @@ async function searchMoviesDriveData(searchQuery: string) {
 export async function GET(request: Request) {
   try {
     // Validate API key first
-    const authResult = await validateApiKey(request);
-    if (!authResult.isValid) {
-      console.log('API key validation failed:', authResult.error);
-      return createUnauthorizedResponse(authResult.error || 'Invalid API key');
-    }
+  
 
     console.log('API key validated successfully for user');
 
@@ -186,7 +181,6 @@ export async function GET(request: Request) {
         searchQuery: searchQuery || null,
         page,
         source: searchQuery ? 'search' : 'page',
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed - 1) : 0
       });
     } catch (scrapeError) {
       console.error('Scraping error:', scrapeError);

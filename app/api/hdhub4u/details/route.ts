@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/middleware/api-auth';
 
 interface EpisodeLink {
   episode: string;
@@ -75,7 +74,7 @@ async function scrapeHDHub4uDetails(url: string): Promise<{ title: string; type:
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://hdhub4u.family/',
+        'Referer': 'https://hdhub4u.gifts/',
       },
     });
 
@@ -534,10 +533,7 @@ async function scrapeHDHub4uDetails(url: string): Promise<{ title: string; type:
 export async function GET(request: NextRequest): Promise<NextResponse<HDHub4uDetailsResponse>> {
   try {
     // Validate API key
-    const authResult = await validateApiKey(request);
-    if (!authResult.isValid) {
-      return createUnauthorizedResponse(authResult.error || 'Invalid API key') as NextResponse<HDHub4uDetailsResponse>;
-    }
+
 
     const { searchParams } = new URL(request.url);
     const detailUrl = searchParams.get('url');
@@ -574,7 +570,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<HDHub4uDet
         success: false,
         error: 'No content found',
         message: 'No content could be extracted from the provided URL',
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
       });
     }
 
@@ -589,14 +584,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<HDHub4uDet
         success: false,
         error: 'No links found',
         message: 'No download or episode links could be extracted from the provided URL',
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
       });
     }
 
     return NextResponse.json<HDHub4uDetailsResponse>({
       success: true,
       data: details,
-      remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
     });
 
   } catch (error: unknown) {

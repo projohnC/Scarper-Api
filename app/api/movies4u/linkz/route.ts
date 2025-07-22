@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/middleware/api-auth';
 
 interface DownloadProvider {
   name: string;
@@ -30,7 +29,6 @@ interface LinkzResponse {
   };
   error?: string;
   message?: string;
-  remainingRequests?: number;
 }
 
 // Function to extract provider type from link text and styling
@@ -208,12 +206,6 @@ async function scrapeLinkzDownloads(url: string): Promise<{ title?: string; down
 
 export async function GET(request: NextRequest): Promise<NextResponse<LinkzResponse>> {
   try {
-    // Validate API key
-    const authResult = await validateApiKey(request);
-    if (!authResult.isValid) {
-      return createUnauthorizedResponse(authResult.error || 'Invalid API key') as NextResponse<LinkzResponse>;
-    }
-
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
 
@@ -248,8 +240,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<LinkzRespo
       return NextResponse.json<LinkzResponse>({
         success: false,
         error: 'No download links found',
-        message: `No download links found for URL: ${url}`,
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
+        message: `No download links found for URL: ${url}`
       });
     }
 
@@ -260,8 +251,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<LinkzRespo
         url,
         downloads,
         isEpisodic
-      },
-      remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
+      }
     });
 
   } catch (error: unknown) {

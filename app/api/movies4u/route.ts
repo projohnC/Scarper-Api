@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/middleware/api-auth';
 
 // Interface for actual download link
 interface ActualDownloadLink {
@@ -79,7 +78,7 @@ interface StreamResponse {
 function normalizeImageUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
   if (url.startsWith('//')) return 'https:' + url;
-  if (url.startsWith('/')) return 'https://movies4u.mba' + url;
+  if (url.startsWith('/')) return 'https://movies4u.esq' + url;
   return url;
 }
 
@@ -100,7 +99,7 @@ function extractIdFromUrl(url: string): string {
 // Main function to scrape Movies4U data
 async function scrapeMovies4UData(page: number = 1, searchQuery?: string): Promise<Movies4UItem[]> {
   try {
-    let url = 'https://movies4u.mba/';
+    let url = 'https://movies4u.esq/';
     
     if (searchQuery) {
       url += `?s=${encodeURIComponent(searchQuery)}`;
@@ -116,7 +115,7 @@ async function scrapeMovies4UData(page: number = 1, searchQuery?: string): Promi
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://movies4u.mba/',
+        'Referer': 'https://movies4u.esq/',
       },
       next: { revalidate: 0 }
     });
@@ -231,7 +230,7 @@ async function scrapeDownloadLinks(url: string): Promise<ContentData> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://movies4u.mba/',
+        'Referer': 'https://movies4u.esq/',
       },
       next: { revalidate: 0 }
     });
@@ -450,10 +449,7 @@ async function scrapeDownloadLinks(url: string): Promise<ContentData> {
 export async function GET(request: NextRequest): Promise<NextResponse<Movies4UResponse | StreamResponse>> {
   try {
     // Validate API key
-    const authResult = await validateApiKey(request);
-    if (!authResult.isValid) {
-      return createUnauthorizedResponse(authResult.error || 'Invalid API key') as NextResponse<Movies4UResponse>;
-    }
+
 
     const { searchParams } = new URL(request.url);
     const streamId = searchParams.get('stream');
@@ -468,14 +464,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<Movies4URe
             success: false,
             error: 'No download links found',
             message: `No download links found for: ${streamId}`,
-            remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
           });
         }
 
         return NextResponse.json<StreamResponse>({
           success: true,
           data: contentData,
-          remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0,
           seasonCount: contentData.seasons.length,
           qualityOptionCount: contentData.seasons.reduce((total, season) => total + season.qualityOptions.length, 0),
           linkCount: contentData.seasons.reduce((total, season) => {
@@ -523,7 +517,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<Movies4URe
         message: searchQuery 
           ? `No items found for search query: "${searchQuery}"` 
           : `No items found on page ${page}`,
-        remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
       });
     }
 
@@ -536,7 +529,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<Movies4URe
           hasNextPage: items.length >= 10
         }
       },
-      remainingRequests: authResult.apiKey ? (authResult.apiKey.requestsLimit - authResult.apiKey.requestsUsed) : 0
     });
 
   } catch (error: unknown) {
