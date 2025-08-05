@@ -348,13 +348,7 @@ export async function GET(request: Request) {
     }
 
     // Make sure the URL is from kmmovies.mobi
-    if (!url.includes('kmmovies.mobi')) {
-      return NextResponse.json({
-        success: false,
-        error: 'Only KMmovies URLs are supported'
-      }, { status: 400 });
-    }
-
+   
     try {
       const movieDetails = await getKMmoviesDetails(url);
 
