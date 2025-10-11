@@ -116,7 +116,7 @@ export default function KMMovieDetailPage({ params }: { params: { id: string } }
       
       try {
         setLoading(true)
-        const fullUrl = `https://kmmovies.art/${id}/`
+        const fullUrl = `https://kmmovies.fans/${id}/`
         
         const res = await fetch(`/api/kmmovies/details?url=${encodeURIComponent(fullUrl)}`, {
           headers: {
