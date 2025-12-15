@@ -24,6 +24,7 @@ import FilmyFlyDocs from "@/components/ui/filmyfly-docs";
 import ZinkMoviesDocs from "@/components/ui/zinkmovies-docs";
 import FourKHDHubDocs from "@/components/ui/4khdhub-docs";
 import NetMirrorDocs from "@/components/ui/netmirror-docs";
+import XMasterDocs from "@/components/ui/xmaster-docs";
 
 interface ApiEndpoint {
   method: string;
@@ -450,6 +451,12 @@ curl -X GET \\
                   <div className="flex items-center gap-2">
                     <Video className="h-4 w-4" />
                     NetMirror API
+                  </div>
+                </SelectItem>
+                <SelectItem value="xmaster" className="text-sm">
+                  <div className="flex items-center gap-2">
+                    <Video className="h-4 w-4" />
+                    xMaster API
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -1031,6 +1038,10 @@ curl -X GET \\
       ) : selectedApiType === "netmirror" ? (
         <div className="w-full overflow-hidden">
           <NetMirrorDocs apiKey={apiKey} onApiKeyChange={setApiKey} />
+        </div>
+      ) : selectedApiType === "xmaster" ? (
+        <div className="w-full overflow-hidden">
+          <XMasterDocs apiKey={apiKey} onApiKeyChange={setApiKey} />
         </div>
       ) : (
         <div className="w-full overflow-hidden">
