@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
+import { PROVIDERS } from "@/lib/providers";
 
 interface SearchResult {
   title: string;
@@ -21,16 +22,6 @@ const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
-
-// Available providers with their search endpoints
-const PROVIDERS = [
-  { name: "4kHDHub", endpoint: "/api/4khdhub/search" },
-  { name: "Movies4u", endpoint: "/api/movies4u/search" },
-  { name: "Drive", endpoint: "/api/drive/search" },
-  { name: "Vega", endpoint: "/api/vega/search" },
-  { name: "ZeeFliz", endpoint: "/api/zeefliz/search" },
-  { name: "ZinkMovies", endpoint: "/api/zinkmovies/search" },
-];
 
 async function searchProvider(
   providerName: string,
