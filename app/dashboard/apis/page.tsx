@@ -28,6 +28,8 @@ import {
 import { DatabaseIcon, KeyIcon, ActivityIcon, CopyIcon, Trash2Icon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useSession } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 type ApiKey = {
   id: string;
@@ -42,15 +44,23 @@ type ApiKey = {
 };
 
 export default function APIsPage() {
+  const { data: session, isPending } = useSession();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    fetchApiKeys();
-  }, []);
+    if (!isPending && !session) {
+      setShowAuthDialog(true);
+      setIsLoading(false);
+    } else if (!isPending && session) {
+      fetchApiKeys();
+    }
+  }, [isPending, session]);
 
   const fetchApiKeys = async () => {
     try {
@@ -137,6 +147,28 @@ export default function APIsPage() {
   };
 
   return (
+    <>
+      {!session && (
+        <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Authentication Required</DialogTitle>
+              <DialogDescription>
+                Please login to access your API keys and manage them.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="sm:justify-center">
+              <Button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="w-full sm:w-auto"
+              >
+                Go to Login
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -350,5 +382,6 @@ export default function APIsPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

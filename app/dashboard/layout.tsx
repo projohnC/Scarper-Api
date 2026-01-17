@@ -106,7 +106,7 @@ function DashboardSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <div className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          © 2026 ScraperAPI
+          © 2026 ScreenScape Api
         </div>
       </SidebarFooter>
     </Sidebar>

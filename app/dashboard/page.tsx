@@ -5,6 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 type DashboardStats = {
   totalApiCalls: number;
@@ -18,12 +28,26 @@ export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    if (!isPending && session) {
+    if (!isPending && !session) {
+      setShowAuthDialog(true);
+    } else if (!isPending && session) {
       fetchStats();
     }
   }, [isPending, session]);
+
+  useEffect(() => {
+    if (showAuthDialog) {
+      const timer = setTimeout(() => {
+        router.push("/login");
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showAuthDialog, router]);
 
   const fetchStats = async () => {
     try {
@@ -67,6 +91,30 @@ export default function DashboardPage() {
           <Skeleton className="h-32" />
         </div>
       </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Authentication Required</DialogTitle>
+            <DialogDescription>
+              Please login to access the dashboard and manage your API keys.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="w-full sm:w-auto"
+            >
+              Go to Login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     );
   }
 

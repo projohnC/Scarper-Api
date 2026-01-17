@@ -19,6 +19,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderName, string> = {
   "KMMovies": "/api/kmmovies/search",
   "Adult": "/api/adult/search",
   "UhdMovies": "/api/uhdmovies/search",
+  "Moviesmod": "/api/mod/search",
 };
 
 export async function getUserProviders(userId: string): Promise<Provider[]> {
