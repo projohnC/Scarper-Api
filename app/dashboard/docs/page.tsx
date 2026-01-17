@@ -17,6 +17,9 @@ import { useSession } from "@/lib/auth-client"
 import { ANIMESALT_ENDPOINTS } from "../../../components/docs-components/animesalt-docs"
 import { KMMOVIES_ENDPOINTS } from "../../../components/docs-components/kmmovies-docs"
 import { NETMIRROR_ENDPOINTS } from "../../../components/docs-components/netmirror-docs"
+import { XM_ENDPOINTS } from "../../../components/docs-components/xm-docs"
+import { XOZ_ENDPOINTS } from "../../../components/docs-components/xoz-docs"
+import { EXTRACTORS_ENDPOINTS } from "../../../components/docs-components/extractors-docs"
 
 interface ApiEndpoint {
   name: string
@@ -1202,7 +1205,10 @@ console.log(details);`,
   },
   ...ANIMESALT_ENDPOINTS,
   ...KMMOVIES_ENDPOINTS,
-  ...NETMIRROR_ENDPOINTS
+  ...NETMIRROR_ENDPOINTS,
+  ...XM_ENDPOINTS,
+  ...XOZ_ENDPOINTS,
+  ...EXTRACTORS_ENDPOINTS
 ]
 
 export default function DocumentationPage() {

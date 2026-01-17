@@ -6,12 +6,11 @@ import { userSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import {
   updateUserProviders,
-  getUserEnabledProviders,
   getDefaultProviders,
   ProviderName,
 } from "@/lib/provider-cache";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -78,12 +77,12 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     const updateData: {
-      enabledProviders: unknown;
+      enabledProviders: string[];
       updatedAt: Date;
       adultEnabled?: boolean;
       adultConsentAt?: Date;
     } = {
-      enabledProviders: validProviders as unknown as null,
+      enabledProviders: validProviders,
       updatedAt: new Date(),
     };
 
@@ -101,7 +100,10 @@ export async function POST(request: NextRequest) {
       await db.insert(userSettings).values({
         id: `settings_${session.user.id}`,
         userId: session.user.id,
-        ...updateData,
+        enabledProviders: validProviders,
+        updatedAt: new Date(),
+        adultEnabled: adultConsent === true ? true : false,
+        adultConsentAt: adultConsent === true ? new Date() : undefined,
       });
     }
 

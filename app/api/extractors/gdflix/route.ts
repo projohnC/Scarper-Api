@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Make request to external extractor API
     const response = await fetch(
-      `https://scarperapi-extractor-7tr4.vercel.app/api/hubcloud?url=${encodeURIComponent(url)}`,
+      `https://scarperapi-extractor-7tr4.vercel.app/api/gdflix?url=${encodeURIComponent(url)}`,
       {
         method: 'POST',
         headers: {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       return NextResponse.json(
-        { error: 'Failed to extract from hubcloud', details: errorText },
+        { error: 'Failed to extract from gdflix', details: errorText },
         { status: response.status }
       );
     }
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error in hubcloud extractor:', error);
+    console.error('Error in gdflix extractor:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
