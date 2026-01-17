@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCookies } from '@/lib/baseurl';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/api-auth';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
 
 interface NetMirrorStreamResponse {
     success: boolean;
@@ -21,9 +21,6 @@ interface PlayResponse {
     h: string;
 }
 
-/**
- * Function to get the 'h' parameter from play.php
- */
 async function getPlayHash(id: string): Promise<string> {
     try {
         const cookies = await getCookies();
@@ -167,10 +164,9 @@ async function getPlaylist(id: string, timestamp: string, h: string): Promise<an
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<NetMirrorStreamResponse>> {
-    // Validate API key
-    const validation = await validateApiKey(request);
+    const validation = await validateProviderAccess(request, "NetMirror");
     if (!validation.valid) {
-        return createUnauthorizedResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorStreamResponse>;
+        return createProviderErrorResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorStreamResponse>;
     }
 
     try {

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { userSettings } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
 
-// Helper function to format duration from seconds to HH:MM:SS
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -18,24 +14,12 @@ function formatDuration(seconds: number): string {
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    // Enforce adult consent
-    const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-    const userId = session?.user?.id;
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Adult content requires login and consent', adult_consent_required: true },
-        { status: 403 }
-      );
-    }
-    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId)).limit(1);
-    if (!settings?.adultEnabled) {
-      return NextResponse.json(
-        { success: false, error: 'Adult content disabled for this account', adult_consent_required: true },
-        { status: 403 }
-      );
-    }
+  const validation = await validateProviderAccess(request, "Adult");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
 
+  try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
     const page = searchParams.get('page') || '1';
@@ -46,8 +30,6 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Replace spaces with + and build the URL
     const encodedQuery = query.replace(/\s+/g, '+');
     const pageNum = parseInt(page);
     const url = pageNum > 1 

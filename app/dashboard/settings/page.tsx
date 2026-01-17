@@ -2,24 +2,90 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { useSession } from "@/lib/auth-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useState, useEffect } from "react";
+import { ALL_PROVIDERS, type ProviderName } from "@/lib/provider-cache";
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const [enabledProviders, setEnabledProviders] = useState<ProviderName[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showAdultConfirm, setShowAdultConfirm] = useState(false);
 
-  const userInitials = session?.user?.name
-    ? session.user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
+  useEffect(() => {
+    fetchProviders();
+  }, []);
+
+  const fetchProviders = async () => {
+    try {
+      const res = await fetch("/api/providers/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setEnabledProviders(data.enabledProviders || []);
+      }
+    } catch (error) {
+      console.error("Error fetching providers:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleProvider = (provider: ProviderName) => {
+    if (provider === "Adult" && !enabledProviders.includes("Adult")) {
+      setShowAdultConfirm(true);
+      return;
+    }
+    
+    setEnabledProviders((prev) =>
+      prev.includes(provider)
+        ? prev.filter((p) => p !== provider)
+        : [...prev, provider]
+    );
+  };
+
+  const handleAdultConfirm = () => {
+    setEnabledProviders((prev) => [...prev, "Adult"]);
+    setShowAdultConfirm(false);
+  };
+
+  const saveProviders = async () => {
+    setSaving(true);
+    try {
+      const hasAdult = enabledProviders.includes("Adult");
+      const res = await fetch("/api/providers/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          enabledProviders,
+          adultConsent: hasAdult 
+        }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setEnabledProviders(data.enabledProviders);
+        alert("Provider settings saved successfully");
+      } else {
+        alert("Failed to save provider settings");
+      }
+    } catch (error) {
+      console.error("Error saving providers:", error);
+      alert("Failed to save provider settings");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -31,138 +97,66 @@ export default function SettingsPage() {
       </div>
 
       <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Profile</h2>
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="size-20">
-              <AvatarImage
-                src={session?.user?.image || ""}
-                alt={session?.user?.name || "User"}
-              />
-              <AvatarFallback className="text-lg">{userInitials}</AvatarFallback>
-            </Avatar>
-            <div className="space-y-2">
-              <Button variant="outline" size="sm">
-                Change Avatar
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                JPG, GIF or PNG. Max size 2MB
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                defaultValue={session?.user?.name || ""}
-                placeholder="Enter your name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                defaultValue={session?.user?.email || ""}
-                placeholder="Enter your email"
-                disabled
-              />
-              <p className="text-xs text-muted-foreground">
-                Email cannot be changed
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button>Save Changes</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Notifications</h2>
+        <h2 className="text-xl font-semibold mb-4">Providers</h2>
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Email Notifications</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive email updates about your account
-              </p>
+          <p className="text-sm text-muted-foreground">
+            Enable or disable content providers for API access
+          </p>
+          {!loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {ALL_PROVIDERS.map((provider) => (
+                <div 
+                  key={provider} 
+                  className={`flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors ${
+                    provider === "Adult" ? "border-red-500/50" : ""
+                  }`}
+                >
+                  <div className="flex-1">
+                    <Label className="cursor-pointer font-medium flex items-center gap-2">
+                      {provider}
+                      {provider === "Adult" && (
+                        <span className="text-xs text-red-500">(18+)</span>
+                      )}
+                    </Label>
+                  </div>
+                  <Switch
+                    checked={enabledProviders.includes(provider)}
+                    onCheckedChange={() => toggleProvider(provider)}
+                  />
+                </div>
+              ))}
             </div>
-            <Switch defaultChecked />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>API Alerts</Label>
-              <p className="text-sm text-muted-foreground">
-                Get notified when API usage exceeds limits
-              </p>
-            </div>
-            <Switch defaultChecked />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Weekly Reports</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive weekly usage reports via email
-              </p>
-            </div>
-            <Switch />
+          ) : (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          )}
+          <div className="flex justify-end pt-4 border-t">
+            <Button onClick={saveProviders} disabled={saving}>
+              {saving ? "Saving..." : "Save Provider Settings"}
+            </Button>
           </div>
         </div>
       </Card>
 
-      <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Security</h2>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="current-password">Current Password</Label>
-            <Input id="current-password" type="password" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New Password</Label>
-            <Input id="new-password" type="password" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm New Password</Label>
-            <Input id="confirm-password" type="password" />
-          </div>
-
-          <div className="flex justify-end">
-            <Button variant="outline">Update Password</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 border-destructive">
-        <h2 className="text-xl font-semibold mb-4 text-destructive">
-          Danger Zone
-        </h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Delete Account</Label>
-              <p className="text-sm text-muted-foreground">
-                Permanently delete your account and all data
+      <AlertDialog open={showAdultConfirm} onOpenChange={setShowAdultConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Adult Content Confirmation</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p className="font-semibold">Are you 18 years or older?</p>
+              <p className="text-sm">
+                By enabling this provider, you confirm that you are at least 18 years of age 
+                and agree to access adult content. This action will be logged.
               </p>
-            </div>
-            <Button variant="destructive">Delete Account</Button>
-          </div>
-        </div>
-      </Card>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAdultConfirm} className="bg-red-600 hover:bg-red-700">
+              Yes, I am 18+
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

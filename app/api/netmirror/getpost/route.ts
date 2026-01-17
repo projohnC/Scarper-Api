@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBaseUrl, getCookies } from '@/lib/baseurl';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/api-auth';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
 
 interface NetMirrorPostResponse {
     success: boolean;
@@ -13,19 +13,13 @@ interface NetMirrorPostResponse {
     message?: string;
 }
 
-/**
- * Function to fetch post details from NetMirror post.php endpoint
- */
 async function fetchNetMirrorPost(id: string, timestamp: string): Promise<Record<string, unknown>> {
     try {
         const baseUrl = await getBaseUrl('nfMirror');
         const cookies = await getCookies();
 
-        // Remove trailing slash from baseUrl if it exists, then add post.php
         const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
         const postUrl = `${cleanBaseUrl}/post.php?id=${id}&t=${timestamp}`;
-
-        console.log(`Fetching NetMirror post from: ${postUrl}`);
 
         const response = await fetch(postUrl, {
             method: 'GET',
@@ -73,10 +67,9 @@ async function fetchNetMirrorPost(id: string, timestamp: string): Promise<Record
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<NetMirrorPostResponse>> {
-    // Validate API key
-    const validation = await validateApiKey(request);
+    const validation = await validateProviderAccess(request, "NetMirror");
     if (!validation.valid) {
-        return createUnauthorizedResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorPostResponse>;
+        return createProviderErrorResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorPostResponse>;
     }
 
     try {
@@ -92,7 +85,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<NetMirrorP
             }, { status: 400 });
         }
 
-        // Always use current timestamp if t is not provided
         const currentTimestamp = Date.now().toString();
         const timestampToUse = t || currentTimestamp;
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBaseUrl, getCookies } from '@/lib/baseurl';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/api-auth';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
 
 interface NetMirrorSearchResponse {
   success: boolean;
@@ -16,21 +16,14 @@ interface NetMirrorSearchResponse {
   message?: string;
 }
 
-/**
- * Function to search NetMirror content
- */
 async function searchNetMirror(query: string, timestamp: string): Promise<Record<string, unknown> | { rawResponse: string; contentType: string; searchUrl: string }> {
   try {
     const baseUrl = await getBaseUrl('nfMirror');
     const cookies = await getCookies();
     
-    // Remove trailing slash from baseUrl if it exists, then add search.php
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const searchUrl = `${cleanBaseUrl}/search.php?s=${encodeURIComponent(query)}&t=${timestamp}`;
     
-    console.log(`Searching NetMirror with query: ${query}`);
-    console.log(`Search URL: ${searchUrl}`);
-
     const response = await fetch(searchUrl, {
       method: 'GET',
       cache: 'no-cache',
@@ -77,10 +70,9 @@ async function searchNetMirror(query: string, timestamp: string): Promise<Record
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<NetMirrorSearchResponse>> {
-  // Validate API key
-  const validation = await validateApiKey(request);
+  const validation = await validateProviderAccess(request, "NetMirror");
   if (!validation.valid) {
-    return createUnauthorizedResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorSearchResponse>;
+    return createProviderErrorResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorSearchResponse>;
   }
 
   try {
@@ -95,13 +87,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<NetMirrorS
       }, { status: 400 });
     }
 
-    // Generate current timestamp
     const currentTimestamp = Date.now().toString();
 
-    // Search NetMirror
     const searchResults = await searchNetMirror(query, currentTimestamp);
 
-    // Construct the search URL for reference
     const baseUrl = await getBaseUrl('nfMirror');
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const searchUrl = `${cleanBaseUrl}/search.php?s=${encodeURIComponent(query)}&t=${currentTimestamp}`;

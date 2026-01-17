@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { getBaseUrl } from "@/lib/baseurl";
-import { validateApiKey, createUnauthorizedResponse } from "@/lib/api-auth";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface Movie {
   id: string;
@@ -22,10 +22,9 @@ interface KMMoviesSearchResponse {
 }
 
 export async function GET(request: NextRequest) {
-  // Validate API key
-  const validation = await validateApiKey(request);
+  const validation = await validateProviderAccess(request, "KMMovies");
   if (!validation.valid) {
-    return createUnauthorizedResponse(validation.error || "Unauthorized");
+    return createProviderErrorResponse(validation.error || "Unauthorized");
   }
 
   try {
@@ -42,11 +41,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get base URL from baseurl.ts
     const baseUrl = await getBaseUrl("KMMovies");
     const searchUrl = `${baseUrl}/?s=${encodeURIComponent(query)}`;
 
-    // Fetch the search results page
     const response = await fetch(searchUrl, {
       headers: {
         "User-Agent":

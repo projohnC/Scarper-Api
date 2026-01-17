@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBaseUrl } from "@/lib/baseurl";
 import * as cheerio from "cheerio";
-import { validateApiKey, createUnauthorizedResponse } from "@/lib/api-auth";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface SearchResult {
   title: string;
@@ -12,10 +12,9 @@ interface SearchResult {
 }
 
 export async function GET(req: NextRequest) {
-  // Validate API key
-  const validation = await validateApiKey(req);
+  const validation = await validateProviderAccess(req, "AnimeSalt");
   if (!validation.valid) {
-    return createUnauthorizedResponse(validation.error || "Unauthorized");
+    return createProviderErrorResponse(validation.error || "Unauthorized");
   }
 
   try {

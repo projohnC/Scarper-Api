@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBaseUrl } from "@/lib/baseurl";
 import * as cheerio from "cheerio";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface Episode {
   id: string;
@@ -34,9 +35,6 @@ interface AnimeDetails {
   seasons?: Season[];
 }
 
-/**
- * Helper function to extract path from full URL
- */
 function extractPathFromUrl(url: string): string {
   try {
     const urlObj = new URL(url);
@@ -46,9 +44,6 @@ function extractPathFromUrl(url: string): string {
   }
 }
 
-/**
- * Helper function to normalize image URL
- */
 function normalizeImageUrl(url: string | undefined): string {
   if (!url) return "";
   if (url.startsWith("data:image/svg+xml")) return "";
@@ -122,6 +117,11 @@ async function fetchSeasonEpisodes(
 }
 
 export async function GET(req: NextRequest) {
+  const validation = await validateProviderAccess(req, "AnimeSalt");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
   try {
     const searchParams = req.nextUrl.searchParams;
     const url = searchParams.get("url");

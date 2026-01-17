@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { userSettings } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
-// Local types for dynamic response structures
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
+
 type PreloadLinks = {
   videoUrl: string | null;
   thumbnailUrl: string | null;
@@ -37,24 +34,12 @@ type RelatedVideos = {
 } | null;
 
 export async function GET(request: NextRequest) {
-  try {
-    // Enforce adult consent
-    const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-    const userId = session?.user?.id;
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Adult content requires login and consent', adult_consent_required: true },
-        { status: 403 }
-      );
-    }
-    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId)).limit(1);
-    if (!settings?.adultEnabled) {
-      return NextResponse.json(
-        { success: false, error: 'Adult content disabled for this account', adult_consent_required: true },
-        { status: 403 }
-      );
-    }
+  const validation = await validateProviderAccess(request, "Adult");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
 
+  try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
 

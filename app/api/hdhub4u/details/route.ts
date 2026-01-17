@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface DownloadLink {
   quality: string;
@@ -21,6 +22,11 @@ interface MovieDetails {
 }
 
 export async function GET(request: NextRequest) {
+  const validation = await validateProviderAccess(request, "HDHub4u");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = searchParams.get("url");

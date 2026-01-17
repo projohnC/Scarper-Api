@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
 import { getBaseUrl, getCookies } from '@/lib/baseurl';
-import { validateApiKey, createUnauthorizedResponse } from '@/lib/api-auth';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
 
 interface NetMirrorItem {
   id: string;
@@ -21,9 +21,6 @@ interface NetMirrorResponse {
   message?: string;
 }
 
-/**
- * Function to generate ID from data-post attribute
- */
 function generateIdFromDataPost(dataPost: string): string {
   return dataPost || '';
 }
@@ -162,10 +159,9 @@ async function fetchNetMirrorPost(id: string, timestamp?: string): Promise<Recor
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<NetMirrorResponse>> {
-  // Validate API key
-  const validation = await validateApiKey(request);
+  const validation = await validateProviderAccess(request, "NetMirror");
   if (!validation.valid) {
-    return createUnauthorizedResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorResponse>;
+    return createProviderErrorResponse(validation.error || "Unauthorized") as NextResponse<NetMirrorResponse>;
   }
 
   try {

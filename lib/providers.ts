@@ -1,25 +1,35 @@
-/**
- * Provider configuration for global search
- */
+import { getUserEnabledProviders, ProviderName } from "./provider-cache";
+
 export interface Provider {
-  name: string;
+  name: ProviderName;
   endpoint: string;
 }
 
-/**
- * Available providers with their search endpoints
- */
-export const PROVIDERS: Provider[] = [
-  // { name: "4kHDHub", endpoint: "/api/4khdhub/search" },
-  // { name: "HDHub4u", endpoint: "/api/hdhub4u/search" },
-  // { name: "Movies4u", endpoint: "/api/movies4u/search" },
-  // { name: "Drive", endpoint: "/api/drive/search" },
-  // { name: "Vega", endpoint: "/api/vega/search" },
-  // { name: "ZeeFliz", endpoint: "/api/zeefliz/search" },
-  // { name: "ZinkMovies", endpoint: "/api/zinkmovies/search" },
-  // { name: "DesireMovies", endpoint: "/api/desiremovies/search" },
-  // { name: "NetMirror", endpoint: "/api/netmirror/search" },
-  // { name: "AnimeSalt", endpoint: "/api/animesalt/search" },
-  // { name: "KMMovies", endpoint: "/api/kmmovies/search" },
-  { name: "Netflix", endpoint: "/api/netflix/search" },
-];
+const PROVIDER_ENDPOINTS: Record<ProviderName, string> = {
+  "4kHDHub": "/api/4khdhub/search",
+  "HDHub4u": "/api/hdhub4u/search",
+  "Movies4u": "/api/movies4u/search",
+  "Drive": "/api/drive/search",
+  "Vega": "/api/vega/search",
+  "ZeeFliz": "/api/zeefliz/search",
+  "ZinkMovies": "/api/zinkmovies/search",
+  "DesireMovies": "/api/desiremovies/search",
+  "NetMirror": "/api/netmirror/search",
+  "AnimeSalt": "/api/animesalt/search",
+  "KMMovies": "/api/kmmovies/search",
+  "Adult": "/api/adult/search",
+};
+
+export async function getUserProviders(userId: string): Promise<Provider[]> {
+  const enabledProviders = await getUserEnabledProviders(userId);
+  return enabledProviders
+    .filter((name) => name in PROVIDER_ENDPOINTS)
+    .map((name) => ({
+      name,
+      endpoint: PROVIDER_ENDPOINTS[name],
+    }));
+}
+
+export function getProviderEndpoint(provider: ProviderName): string | null {
+  return PROVIDER_ENDPOINTS[provider] || null;
+}

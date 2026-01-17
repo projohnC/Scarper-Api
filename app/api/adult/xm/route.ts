@@ -1,14 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { hmasterBaseUrl } from '@/app/url/baseurl';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const validation = await validateProviderAccess(request, "Adult");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
   try {
-    // Decode base64 URL
     const baseUrl = Buffer.from(hmasterBaseUrl, 'base64').toString('utf-8');
 
-    // Initialize data structure
     const data: {
       videos: Array<{
         id: number;
@@ -36,17 +40,14 @@ export async function GET() {
       videos: []
     };
 
-    // Helper function to extract videos from JSON in script tags
     const extractVideos = ($: cheerio.CheerioAPI) => {
       const videos: typeof data.videos = [];
       
       try {
-        // Find script tags containing JSON data
         $('script').each((_, script) => {
           const scriptContent = $(script).html();
           if (scriptContent && scriptContent.includes('videoThumbProps')) {
             try {
-              // Extract JSON from script
               const jsonMatch = scriptContent.match(/window\.initials\s*=\s*({[\s\S]*?});/);
               if (jsonMatch) {
                 const jsonData = JSON.parse(jsonMatch[1]);

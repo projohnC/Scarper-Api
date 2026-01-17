@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { PROVIDERS } from "@/lib/providers";
-import { validateApiKey, createUnauthorizedResponse } from "@/lib/api-auth";
+import { getUserProviders } from "@/lib/providers";
+import { validateApiKey } from "@/lib/api-auth";
 
 interface SearchResult {
   title: string;
@@ -18,7 +18,6 @@ interface ProviderResults {
   error?: string;
 }
 
-// Initialize Redis client
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
@@ -92,13 +91,15 @@ async function searchProvider(
 }
 
 export async function GET(request: NextRequest) {
-  // Validate API key
   const validation = await validateApiKey(request);
   if (!validation.valid) {
-    return createUnauthorizedResponse(validation.error || "Unauthorized");
+    return NextResponse.json(
+      { error: validation.error || "Unauthorized" },
+      { status: 401 }
+    );
   }
 
-  // Store the API key to pass to internal requests
+  const userId = validation.keyData?.userId;
   const apiKeyValue = validation.keyData?.key;
 
   try {
@@ -113,10 +114,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate cache key
     const cacheKey = `global-search:${query.toLowerCase()}`;
 
-    // Check cache if enabled
     if (useCache) {
       try {
         const cachedResults = await redis.get(cacheKey);
@@ -131,17 +130,16 @@ export async function GET(request: NextRequest) {
         }
       } catch (cacheError) {
         console.error("Cache read error:", cacheError);
-        // Continue without cache
       }
     }
 
-    // Get base URL for API calls
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
-    console.log(`Searching across ${PROVIDERS.length} providers for: ${query}`);
+    const userProviders = userId ? await getUserProviders(userId) : [];
 
-    // Search all providers in parallel
-    const searchPromises = PROVIDERS.map((provider) =>
+    console.log(`Searching across ${userProviders.length} providers for: ${query}`);
+
+    const searchPromises = userProviders.map((provider) =>
       searchProvider(provider.name, provider.endpoint, query, baseUrl, apiKeyValue)
     );
 
