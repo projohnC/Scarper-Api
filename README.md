@@ -135,7 +135,7 @@ Access the interactive API documentation at `/dashboard/docs` after logging in.
 ### Example Request
 
 ```typescript
-const response = await fetch('https://your-domain.com/api/kmmovies/search?q=inception', {
+const response = await fetch('https://screenscapeapi.dev/api/kmmovies/search?q=inception', {
   method: 'GET',
   headers: {
     'x-api-key': 'YOUR_API_KEY',
@@ -183,12 +183,12 @@ All API endpoints require authentication via API keys.
 
 **Header (Recommended)**
 ```bash
-curl -H "x-api-key: YOUR_API_KEY" https://your-domain.com/api/kmmovies
+curl -H "x-api-key: YOUR_API_KEY" https://screenscapeapi.dev/api/kmmovies
 ```
 
 **Query Parameter**
 ```bash
-curl "https://your-domain.com/api/kmmovies?api_key=YOUR_API_KEY"
+curl "https://screenscapeapi.dev/api/kmmovies?api_key=YOUR_API_KEY"
 ```
 
 **Session (Dashboard)**

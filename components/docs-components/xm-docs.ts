@@ -54,7 +54,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/adult/xm" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/adult/xm" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -147,7 +147,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/adult/xm/search?q=search+term&page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/adult/xm/search?q=search+term&page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -247,7 +247,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/adult/xm/stream?url=https://xhamster.com/videos/..." \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/adult/xm/stream?url=https://xhamster.com/videos/..." \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{

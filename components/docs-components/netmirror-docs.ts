@@ -43,7 +43,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/netmirror" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/netmirror" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -102,7 +102,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/netmirror/search?q=breaking+bad" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/netmirror/search?q=breaking+bad" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -163,7 +163,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/netmirror/getpost?id=12345" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/netmirror/getpost?id=12345" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -243,7 +243,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/netmirror/stream?id=12345" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/netmirror/stream?id=12345" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{

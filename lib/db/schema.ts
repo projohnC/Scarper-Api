@@ -8,7 +8,7 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   totalRequestCount: integer("total_request_count").notNull().default(0),
-  totalRequestQuota: integer("total_request_quota").notNull().default(1000),
+  totalRequestQuota: integer("total_request_quota").notNull().default(500),
   quotaResetAt: timestamp("quota_reset_at"),
   lastQuotaWarningAt: timestamp("last_quota_warning_at"), // Track when quota warning was last sent
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -49,7 +49,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/kmmovies?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/kmmovies?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -119,7 +119,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/kmmovies/search?q=inception" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/kmmovies/search?q=inception" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -206,7 +206,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/kmmovies/details?url=https://kmmovies.store/inception-2010/" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/kmmovies/details?url=https://kmmovies.store/inception-2010/" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -301,7 +301,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/kmmovies/magiclinks?url=https://w1.magiclinks.my/12345/" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/kmmovies/magiclinks?url=https://w1.magiclinks.my/12345/" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{

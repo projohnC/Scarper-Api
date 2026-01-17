@@ -75,7 +75,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/4khdhub?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/4khdhub?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -127,7 +127,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/4khdhub/search?q=inception" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/4khdhub/search?q=inception" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -182,7 +182,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/4khdhub/details?url=/inception-2010" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/4khdhub/details?url=/inception-2010" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -237,7 +237,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/desiremovies?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/desiremovies?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -288,7 +288,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/desiremovies/search?q=avatar" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/desiremovies/search?q=avatar" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -334,7 +334,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/desiremovies/details?url=/avatar-2022" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/desiremovies/details?url=/avatar-2022" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -386,7 +386,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/drive?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/drive?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -442,7 +442,7 @@ console.log(result);`,
   .then(response => response.json())
   .then(result => console.log(result))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/netmirror" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/netmirror" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -499,7 +499,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/movies4u?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/movies4u?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -551,7 +551,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/movies4u/search?q=batman" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/movies4u/search?q=batman" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -594,7 +594,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/movies4u/details?url=/batman-2022" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/movies4u/details?url=/batman-2022" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -646,7 +646,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/hdhub4u?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/hdhub4u?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -696,7 +696,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/hdhub4u/search?q=avengers" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/hdhub4u/search?q=avengers" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -750,7 +750,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/hdhub4u/details?url=/movie/inception-2010" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/hdhub4u/details?url=/movie/inception-2010" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -804,7 +804,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/zeefliz?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/zeefliz?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -855,7 +855,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/zeefliz/search?q=stranger" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/zeefliz/search?q=stranger" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -897,7 +897,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/zeefliz/details?url=/movie-2024" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/zeefliz/details?url=/movie-2024" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -949,7 +949,7 @@ console.log(movies);`,
   .then(response => response.json())
   .then(movies => console.log(movies))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/vega?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/vega?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -991,7 +991,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/vega/search?q=spiderman" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/vega/search?q=spiderman" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -1033,7 +1033,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/vega/details?url=/spiderman-2021" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/vega/details?url=/spiderman-2021" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -1095,7 +1095,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/zinkmovies?page=1" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/zinkmovies?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -1145,7 +1145,7 @@ console.log(results);`,
   .then(response => response.json())
   .then(results => console.log(results))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/zinkmovies/search?q=joker" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/zinkmovies/search?q=joker" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `[
@@ -1187,7 +1187,7 @@ console.log(details);`,
   .then(response => response.json())
   .then(details => console.log(details))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/zinkmovies/details?url=/joker-2019" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/zinkmovies/details?url=/joker-2019" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{

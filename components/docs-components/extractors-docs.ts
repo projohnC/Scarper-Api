@@ -40,7 +40,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/extractors/hubcloud?url=https%3A%2F%2Fhubcloud.lol%2F..." \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/extractors/hubcloud?url=https%3A%2F%2Fhubcloud.lol%2F..." \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
@@ -96,7 +96,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://your-domain.com/api/extractors/gdflix?url=https%3A%2F%2Fgdflix.cfd%2F..." \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/extractors/gdflix?url=https%3A%2F%2Fgdflix.cfd%2F..." \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{
