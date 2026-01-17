@@ -45,6 +45,7 @@
 - 📖 **Interactive Documentation** - Built-in API playground with TypeScript examples
 - 🎨 **Beautiful UI** - Shadcn/ui components with Tailwind CSS
 - 💾 **PostgreSQL Database** - Powered by Neon serverless PostgreSQL with Drizzle ORM
+- 📧 **Email Notifications** - Automated login alerts and quota warnings with beautiful HTML emails
 
 ## 🎯 Supported Providers
 

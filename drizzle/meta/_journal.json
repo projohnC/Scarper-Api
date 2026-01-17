@@ -15,6 +15,13 @@
       "when": 1768638303477,
       "tag": "0001_needy_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768644845200,
+      "tag": "0002_slippery_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

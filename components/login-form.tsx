@@ -34,6 +34,12 @@ export function LoginForm({
         password,
         callbackURL: "/dashboard",
       });
+      
+      // Send login notification email in background
+      fetch('/api/auth/notify-login', { method: 'POST' }).catch(err => 
+        console.error('Failed to send login notification:', err)
+      );
+      
       toast.success("Login successful!");
       router.push("/dashboard");
     } catch (error) {
@@ -50,6 +56,11 @@ export function LoginForm({
         provider: "github",
         callbackURL: "/dashboard",
       });
+      
+      // Send login notification email in background
+      fetch('/api/auth/notify-login', { method: 'POST' }).catch(err => 
+        console.error('Failed to send login notification:', err)
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to login with GitHub");
       setIsLoading(false);

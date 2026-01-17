@@ -34,7 +34,7 @@ import {
 import { useState, useEffect } from "react";
 import { ALL_PROVIDERS, type ProviderName } from "@/lib/provider-cache";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Settings } from "lucide-react";
+import { Settings, CheckCircle2, XCircle } from "lucide-react";
 
 export default function SettingsPage() {
   const [enabledProviders, setEnabledProviders] = useState<ProviderName[]>([]);
@@ -42,6 +42,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [showAdultConfirm, setShowAdultConfirm] = useState(false);
   const [showProviderManagement, setShowProviderManagement] = useState(false);
+  const [successDialog, setSuccessDialog] = useState<{ show: boolean; title: string; message: string }>({ show: false, title: '', message: '' });
+  const [errorDialog, setErrorDialog] = useState<{ show: boolean; title: string; message: string }>({ show: false, title: '', message: '' });
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -97,17 +99,18 @@ export default function SettingsPage() {
         const data = await res.json();
         setEnabledProviders(data.enabledProviders);
         setShowProviderManagement(false);
-        alert("Provider settings saved successfully");
+        setSuccessDialog({ show: true, title: 'Success!', message: 'Provider settings saved successfully.' });
       } else {
-        alert("Failed to save provider settings");
+        setErrorDialog({ show: true, title: 'Error', message: 'Failed to save provider settings. Please try again.' });
       }
     } catch (error) {
       console.error("Error saving providers:", error);
-      alert("Failed to save provider settings");
+      setErrorDialog({ show: true, title: 'Error', message: 'Failed to save provider settings. Please try again.' });
     } finally {
       setSaving(false);
     }
   };
+
 
   const providersList = (
     <div className="space-y-4">
@@ -237,6 +240,46 @@ export default function SettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Success Dialog */}
+      <Dialog open={successDialog.show} onOpenChange={(open) => setSuccessDialog({ ...successDialog, show: open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              {successDialog.title}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {successDialog.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setSuccessDialog({ show: false, title: '', message: '' })}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Dialog */}
+      <Dialog open={errorDialog.show} onOpenChange={(open) => setErrorDialog({ ...errorDialog, show: open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-500" />
+              {errorDialog.title}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {errorDialog.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setErrorDialog({ show: false, title: '', message: '' })}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

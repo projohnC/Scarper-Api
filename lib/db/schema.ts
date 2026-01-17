@@ -10,6 +10,7 @@ export const user = pgTable("user", {
   totalRequestCount: integer("total_request_count").notNull().default(0),
   totalRequestQuota: integer("total_request_quota").notNull().default(1000),
   quotaResetAt: timestamp("quota_reset_at"),
+  lastQuotaWarningAt: timestamp("last_quota_warning_at"), // Track when quota warning was last sent
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

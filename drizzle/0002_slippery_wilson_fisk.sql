@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "last_quota_warning_at" timestamp;
