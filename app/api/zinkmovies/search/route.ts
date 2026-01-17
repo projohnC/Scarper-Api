@@ -58,8 +58,9 @@ export async function GET(request: NextRequest) {
       const $article = $(element);
       const $link = $article.find('.image .thumbnail a').first();
       const url = $link.attr('href') || '';
-      const imageUrl = $article.find('.image .thumbnail img').attr('src') || 
-                       $article.find('.image .thumbnail img').attr('data-lazy-src') || '';
+      const imageUrl = $article.find('.image .thumbnail img').attr('data-lazy-src') || 
+                       $article.find('.image .thumbnail img').attr('data-src') || 
+                       $article.find('.image .thumbnail img').attr('src') || '';
       const title = $article.find('.details .title a').text().trim();
       const rating = $article.find('.meta .rating').text().trim();
       const year = $article.find('.meta .year').text().trim();

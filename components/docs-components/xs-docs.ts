@@ -70,7 +70,7 @@ console.log(data);`,
     description: "Search adult videos on xxxstreams.org (18+ Only)",
     requiresAuth: true,
     parameters: [
-      { name: "query", type: "string", required: true, description: "Search query" },
+      { name: "q", type: "string", required: true, description: "Search query" },
     ],
     tsExample: `const response = await fetch(\`\${baseUrl}/api/adult/xs/search?q=\${query}\`, {
   method: 'GET',
@@ -96,7 +96,7 @@ interface SearchResponse {
 
 const data: SearchResponse = await response.json();
 console.log(data);`,
-    jsExample: `fetch(\`\${baseUrl}/api/adult/xs/search?query=\${query}\`, {
+    jsExample: `fetch(\`\${baseUrl}/api/adult/xs/search?q=\${query}\`, {
   method: 'GET',
   headers: {
     'x-api-key': 'YOUR_API_KEY',
@@ -106,7 +106,7 @@ console.log(data);`,
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
-    curlExample: `curl -X GET "https://screenscapeapi.dev/api/adult/xs/search?query=mom" \\
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/adult/xs/search?q=mom" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
     responseExample: `{

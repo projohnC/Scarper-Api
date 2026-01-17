@@ -22,6 +22,7 @@ import { XM_ENDPOINTS } from "../../../components/docs-components/xm-docs"
 import { XOZ_ENDPOINTS } from "../../../components/docs-components/xoz-docs"
 import { XS_ENDPOINTS } from "../../../components/docs-components/xs-docs"
 import { EXTRACTORS_ENDPOINTS } from "../../../components/docs-components/extractors-docs"
+import { UHDMOVIES_ENDPOINTS } from "../../../components/docs-components/uhdmovies-docs"
 
 interface ApiEndpoint {
   name: string
@@ -1258,7 +1259,8 @@ console.log(details);`,
   ...XM_ENDPOINTS,
   ...XOZ_ENDPOINTS,
   ...XS_ENDPOINTS,
-  ...EXTRACTORS_ENDPOINTS
+  ...EXTRACTORS_ENDPOINTS,
+  ...UHDMOVIES_ENDPOINTS
 ]
 
 export default function DocumentationPage() {
@@ -1559,6 +1561,25 @@ export default function DocumentationPage() {
                   {endpoint.endpoint}
                 </code>
               </div>
+              
+              {/* IP-Based Streaming Warning for XS and AnimeSalt Providers */}
+              {(endpoint.provider === "Adult (XS)" || endpoint.provider?.includes("XS") || endpoint.provider === "AnimeSalt") && (
+                <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-yellow-600 dark:text-yellow-400 text-xl">⚠️</span>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                        IP-Based Streaming Notice
+                      </h4>
+                      <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                        This provider uses IP-based streaming. If you fetch the stream URL from your VPS or server, 
+                        you must play the video through that same server. The stream URL is tied to the IP address 
+                        that requested it and cannot be played from a different location.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardHeader>
 
             <CardContent className="space-y-4">

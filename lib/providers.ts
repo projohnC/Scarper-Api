@@ -18,6 +18,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderName, string> = {
   "AnimeSalt": "/api/animesalt/search",
   "KMMovies": "/api/kmmovies/search",
   "Adult": "/api/adult/search",
+  "UhdMovies": "/api/uhdmovies/search",
 };
 
 export async function getUserProviders(userId: string): Promise<Provider[]> {
