@@ -200,6 +200,53 @@ console.log(details);`,
 }`
   },
   {
+    name: "4kHDHub Gadget Link Decoder",
+    method: "GET",
+    endpoint: "/api/4khdhub/gadget",
+    provider: "4kHDHub",
+    description: "Decode encrypted gadgetsweb.xyz links to get actual download/redirect links",
+    requiresAuth: true,
+    parameters: [
+      { name: "link", type: "string", required: true, description: "Encrypted gadgetsweb.xyz link to decode" },
+    ],
+    tsExample: `const response = await fetch(\`\${baseUrl}/api/4khdhub/gadget?link=\${encodeURIComponent(gadgetLink)}\`, {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+interface GadgetResponse {
+  success: boolean;
+  originalLink: string;
+  decodedLink: string;
+  finalLink: string;
+}
+
+const result: GadgetResponse = await response.json();
+console.log(result);`,
+    jsExample: `fetch(\`\${baseUrl}/api/4khdhub/gadget?link=\${encodeURIComponent(gadgetLink)}\`, {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => response.json())
+  .then(result => console.log(result))
+  .catch(error => console.error('Error:', error));`,
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/4khdhub/gadget?link=https%3A%2F%2Fgadgetsweb.xyz%2F%3Fid%3D..." \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`,
+    responseExample: `{
+  "success": true,
+  "originalLink": "https://gadgetsweb.xyz/?id=...",
+  "decodedLink": "https://hubcloud.lol/...",
+  "finalLink": "https://hubcloud.lol/drive/..."
+}`
+  },
+  {
     name: "DesireMovies Home",
     method: "GET",
     endpoint: "/api/desiremovies",
