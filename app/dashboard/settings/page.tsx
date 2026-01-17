@@ -225,6 +225,35 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      <Card className="p-6 bg-gradient-to-r from-green-500/10 to-teal-500/10 border-green-500/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold mb-2">ScreenScape App</h2>
+            <p className="text-sm text-muted-foreground">
+              Download the official ScreenScape app for the best experience
+            </p>
+          </div>
+          <Link
+            href="https://screenscape.fun/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button className="gap-2 bg-green-600 hover:bg-green-700">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download App
+            </Button>
+          </Link>
+        </div>
+      </Card>
+
       {isMobile ? (
         <Drawer open={showProviderManagement} onOpenChange={setShowProviderManagement}>
           <DrawerContent>

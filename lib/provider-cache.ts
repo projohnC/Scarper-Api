@@ -20,6 +20,7 @@ export const ALL_PROVIDERS = [
   "NetMirror",
   "AnimeSalt",
   "KMMovies",
+  "UhdMovies",
   "Adult",
 ] as const;
 

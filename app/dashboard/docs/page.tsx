@@ -1444,6 +1444,34 @@ export default function DocumentationPage() {
             <span className="text-sm font-medium text-white">Give Star ⭐</span>
           </Link>
         </div>
+        <Card className="mt-4 p-4 bg-gradient-to-r from-green-500/10 to-teal-500/10 border-green-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold mb-1">ScreenScape App</h3>
+              <p className="text-sm text-muted-foreground">
+                Download the official ScreenScape app for the best experience
+              </p>
+            </div>
+            <Link
+              href="https://screenscape.fun/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button className="gap-2 bg-green-600 hover:bg-green-700">
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download App
+              </Button>
+            </Link>
+          </div>
+        </Card>
         {session?.user && userApiKey && (
           <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
             <p className="text-sm text-green-600 dark:text-green-400">
