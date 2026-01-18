@@ -80,17 +80,25 @@ export async function GET(request: NextRequest) {
     $(".page-body h5").each((_, el) => {
       const $el = $(el);
       const text = $el.text();
-      const link = $el.find("a").attr("href");
-
-      if (link && text) {
-        if (text.includes("480p")) {
-          downloadLinks["480p"].push({ title: text.trim(), url: link });
-        } else if (text.includes("720p")) {
-          downloadLinks["720p"].push({ title: text.trim(), url: link });
-        } else if (text.includes("1080p")) {
-          downloadLinks["1080p"].push({ title: text.trim(), url: link });
-        } else if (text.includes("4K") || text.includes("2160p")) {
-          downloadLinks["4K"].push({ title: text.trim(), url: link });
+      
+      // Check if this h5 contains quality information
+      if (text.includes("480p") || text.includes("720p") || 
+          text.includes("1080p") || text.includes("4K") || text.includes("2160p")) {
+        
+        // Get the link from the next h5 element
+        const $nextH5 = $el.next("h5");
+        const link = $nextH5.find("a").attr("href");
+        
+        if (link) {
+          if (text.includes("480p")) {
+            downloadLinks["480p"].push({ title: text.trim(), url: link });
+          } else if (text.includes("720p")) {
+            downloadLinks["720p"].push({ title: text.trim(), url: link });
+          } else if (text.includes("1080p")) {
+            downloadLinks["1080p"].push({ title: text.trim(), url: link });
+          } else if (text.includes("4K") || text.includes("2160p")) {
+            downloadLinks["4K"].push({ title: text.trim(), url: link });
+          }
         }
       }
     });
