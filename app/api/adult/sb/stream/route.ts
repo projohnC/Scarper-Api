@@ -1,0 +1,124 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { validateProviderAccess, createProviderErrorResponse } from '@/lib/provider-validator';
+
+export async function GET(req: NextRequest) {
+  const validation = await validateProviderAccess(req, "Adult");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const url = searchParams.get('url');
+
+    if (!url) {
+      return NextResponse.json(
+        { error: 'URL parameter is required' },
+        { status: 400 }
+      );
+    }
+
+    const proxyUrl = `https://odd-cloud-1e14.hunternisha55.workers.dev/?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(proxyUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: `Failed to fetch URL: ${response.statusText}` },
+        { status: response.status }
+      );
+    }
+
+    const html = await response.text();
+
+    const data = extractStreamData(html);
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Could not extract stream data from the page' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error processing request:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
+
+function extractStreamData(html: string) {
+  try {
+    const videoIdMatch = html.match(/var\s+ana_video_id\s*=\s*'([^']+)'/);
+    const ana_video_id = videoIdMatch ? videoIdMatch[1] : null;
+
+    const streamDataMatch = html.match(/var\s+stream_data\s*=\s*(\{[\s\S]*?\});/);
+    let stream_data = null;
+    if (streamDataMatch) {
+      try {
+        let jsonStr = streamDataMatch[1];
+        
+        jsonStr = jsonStr.replace(/'([^']*?)':/g, '"$1":');  // Keys
+        jsonStr = jsonStr.replace(/:\s*'([^']*?)'/g, ': "$1"');  // String values
+        jsonStr = jsonStr.replace(/\[\s*'([^']*?)'\s*\]/g, '["$1"]');  // Array values
+        
+        stream_data = JSON.parse(jsonStr);
+      } catch (e) {
+        console.error('Error parsing stream_data:', e);
+        try {
+          const jsonStr = streamDataMatch[1].replace(/'/g, '"');
+          stream_data = JSON.parse(jsonStr);
+        } catch (e2) {
+          console.error('Error parsing stream_data (fallback):', e2);
+        }
+      }
+    }
+
+    const keywordsMatch = html.match(/var\s+live_keywords\s*=\s*'([^']+)'/);
+    const live_keywords = keywordsMatch ? keywordsMatch[1] : null;
+
+    if (!stream_data && !ana_video_id) {
+      return null;
+    }
+
+    return {
+      ana_video_id,
+      stream_data,
+      live_keywords,
+      qualities: stream_data ? {
+        '240p': stream_data['240p']?.[0] || null,
+        '320p': stream_data['320p']?.[0] || null,
+        '480p': stream_data['480p']?.[0] || null,
+        '720p': stream_data['720p']?.[0] || null,
+        '1080p': stream_data['1080p']?.[0] || null,
+        '4k': stream_data['4k']?.[0] || null,
+      } : null,
+      hls: stream_data ? {
+        master: stream_data['m3u8']?.[0] || null,
+        '240p': stream_data['m3u8_240p']?.[0] || null,
+        '320p': stream_data['m3u8_320p']?.[0] || null,
+        '480p': stream_data['m3u8_480p']?.[0] || null,
+        '720p': stream_data['m3u8_720p']?.[0] || null,
+        '1080p': stream_data['m3u8_1080p']?.[0] || null,
+        '4k': stream_data['m3u8_4k']?.[0] || null,
+      } : null,
+      mpd: stream_data?.['mpd']?.[0] || null,
+      cover_image: stream_data?.['cover_image'] || null,
+      thumbnail: stream_data?.['thumbnail'] || null,
+      stream_raw_id: stream_data?.['stream_raw_id'] || null,
+      stream_sheet: stream_data?.['stream_sheet'] || null,
+      length: stream_data?.['length'] || null,
+      main: stream_data?.['main']?.[0] || null,
+    };
+  } catch (error) {
+    console.error('Error extracting stream data:', error);
+    return null;
+  }
+}

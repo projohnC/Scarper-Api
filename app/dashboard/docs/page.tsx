@@ -32,6 +32,7 @@ import { XX_ENDPOINTS } from "../../../components/docs-components/xx-docs"
 import { XOZ_ENDPOINTS } from "../../../components/docs-components/xoz-docs"
 import { XS_ENDPOINTS } from "../../../components/docs-components/xs-docs"
 import { XP_ENDPOINTS } from "../../../components/docs-components/xp-docs"
+import { SB_ENDPOINTS } from "../../../components/docs-components/sb-docs"
 import { EXTRACTORS_ENDPOINTS } from "../../../components/docs-components/extractors-docs"
 import { UHDMOVIES_ENDPOINTS } from "../../../components/docs-components/uhdmovies-docs"
 import { MOD_ENDPOINTS } from "../../../components/docs-components/mod-docs"
@@ -1715,6 +1716,7 @@ console.log(episodeData);`,
   ...XOZ_ENDPOINTS,
   ...XS_ENDPOINTS,
   ...XP_ENDPOINTS,
+  ...SB_ENDPOINTS,
   ...ZTEEN_ENDPOINTS,
   ...EXTRACTORS_ENDPOINTS,
   ...UHDMOVIES_ENDPOINTS,
