@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { ANIMESALT_ENDPOINTS } from "../../../components/docs-components/animesalt-docs"
+import { ANIMEPAHE_ENDPOINTS } from "../../../components/docs-components/animepahe-docs"
 import { KMMOVIES_ENDPOINTS } from "../../../components/docs-components/kmmovies-docs"
 import { NETMIRROR_ENDPOINTS } from "../../../components/docs-components/netmirror-docs"
 import { XM_ENDPOINTS } from "../../../components/docs-components/xm-docs"
@@ -1711,6 +1712,7 @@ console.log(episodeData);`,
 }`
   },
   ...ANIMESALT_ENDPOINTS,
+  ...ANIMEPAHE_ENDPOINTS,
   ...KMMOVIES_ENDPOINTS,
   ...NETMIRROR_ENDPOINTS,
   ...XM_ENDPOINTS,
@@ -2054,6 +2056,32 @@ export default function DocumentationPage() {
                         This provider uses IP-based streaming. If you fetch the stream URL from your VPS or server, 
                         you must play the video through that same server. The stream URL is tied to the IP address 
                         that requested it and cannot be played from a different location.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Header Requirements Warning for AnimePahe Stream Endpoint */}
+              {endpoint.provider === "AnimePahe" && endpoint.endpoint.includes("/stream") && (
+                <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-yellow-600 dark:text-yellow-400 text-xl">⚠️</span>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                        Required Headers for Playback
+                      </h4>
+                      <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-2">
+                        The m3u8 stream URL returned by this endpoint requires specific headers to play properly:
+                      </p>
+                      <div className="bg-yellow-950/20 p-3 rounded border border-yellow-500/30">
+                        <code className="text-xs font-mono text-yellow-600 dark:text-yellow-300">
+                          Referer: https://kwik.cx/<br />
+                          Origin: https://kwik.cx
+                        </code>
+                      </div>
+                      <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
+                        Without these headers, the stream will not work. Make sure to include them in your video player or fetch request.
                       </p>
                     </div>
                   </div>

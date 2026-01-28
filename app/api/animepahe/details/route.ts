@@ -21,7 +21,6 @@ export async function GET(request: Request) {
     // Extract anime_session and episode_session from URL
     const urlMatch = url.match(/\/play\/([^/]+)\/([^/]+)/);
     const animeSession = urlMatch ? urlMatch[1] : "";
-    const episodeSession = urlMatch ? urlMatch[2] : "";
 
     // Fetch the episode page
     const response = await fetch(url, {
