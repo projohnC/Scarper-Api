@@ -152,6 +152,82 @@ export async function GET(request: Request) {
       if (streamUrlMatch) streamUrl = streamUrlMatch[1];
     });
 
+    // Extract all available quality options from resolution menu
+    const qualityOptions: Array<{
+      fansub: string;
+      resolution: string;
+      audio: string;
+      url: string;
+      av1: string;
+    }> = [];
+
+    $("#resolutionMenu button.dropdown-item").each((_, elem) => {
+      const $elem = $(elem);
+      const url = $elem.attr("data-src") || "";
+      const fansub = $elem.attr("data-fansub") || "";
+      const resolution = $elem.attr("data-resolution") || "";
+      const audio = $elem.attr("data-audio") || "";
+      const av1 = $elem.attr("data-av1") || "";
+
+      if (url && resolution) {
+        qualityOptions.push({
+          fansub,
+          resolution,
+          audio,
+          url,
+          av1,
+        });
+      }
+    });
+
+    // Filter for English audio and find maximum quality
+    const engOptions = qualityOptions.filter((opt) => opt.audio === "eng");
+    const maxEngQuality = engOptions.sort(
+      (a, b) => parseInt(b.resolution) - parseInt(a.resolution)
+    )[0];
+
+  
+
+    // Extract download links
+    const downloadLinks: Array<{
+      fansub: string;
+      resolution: string;
+      audio: string;
+      url: string;
+      size: string;
+    }> = [];
+
+    $("#pickDownload a.dropdown-item").each((_, elem) => {
+      const $elem = $(elem);
+      const url = $elem.attr("href") || "";
+      const text = $elem.text().trim();
+      
+      // Parse text like "FLE · 1080p (164MB) BD eng"
+      const match = text.match(/([A-Z]+)\s*·\s*(\d+)p\s*\(([^)]+)\)/);
+      if (match && url) {
+        const fansub = match[1];
+        const resolution = match[2];
+        const size = match[3];
+        const audio = text.toLowerCase().includes("eng") ? "eng" :
+                     text.toLowerCase().includes("jpn") ? "jpn" :
+                     text.toLowerCase().includes("kor") ? "kor" : "jpn";
+
+        downloadLinks.push({
+          fansub,
+          resolution,
+          audio,
+          url,
+          size,
+        });
+      }
+    });
+
+    // Filter English downloads and find max quality
+    const engDownloads = downloadLinks.filter((link) => link.audio === "eng");
+    const maxEngDownload = engDownloads.sort(
+      (a, b) => parseInt(b.resolution) - parseInt(a.resolution)
+    )[0];
+
     // Extract current episode info
     const currentEpisodeText = $("#episodeMenu").text().trim();
     const currentEpisodeMatch = currentEpisodeText.match(/Episode (\d+)/);
@@ -198,6 +274,12 @@ export async function GET(request: Request) {
           provider: provider,
           stream_url: streamUrl,
         },
+        recommended: {
+          english_max_quality: maxEngQuality || null,
+          english_max_download: maxEngDownload || null,
+        },
+        quality_options: qualityOptions,
+        download_links: downloadLinks,
         episodes: episodes,
         total_episodes: episodes.length,
       },
