@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
           if (linkUrl) {
             // Determine link type from text or URL
             let type = 'Unknown';
-            if (linkText.includes('Hub-Cloud')) {
+            if (linkText.includes('Hub-Cloud [DD]')) {
               type = 'Hub-Cloud';
             } else if (linkText.includes('Direct') || linkText.includes('Drive-link')) {
               type = 'Direct-Drive-link';
@@ -92,7 +92,8 @@ export async function GET(request: NextRequest) {
               type = 'G-Drive';
             } else if (linkText.includes('Telegram')) {
               type = 'Telegram';
-            }
+            } else if (linkText.includes('
+            
             
             options.push({
               label: linkText,
