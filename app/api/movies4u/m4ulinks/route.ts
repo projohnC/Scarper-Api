@@ -8,7 +8,7 @@ interface DownloadOption {
 }
 
 interface QualityDownload {
-  quality: string;
+  quality: string; // Will be "Episode 1", "Episode 2", etc.
   size: string;
   options: DownloadOption[];
 }
@@ -16,7 +16,7 @@ interface QualityDownload {
 interface M4ULinksData {
   title: string;
   note: string;
-  downloads: QualityDownload[];
+  downloads: QualityDownload[]; // Episodes with download options
 }
 
 export async function GET(request: NextRequest) {
@@ -56,25 +56,26 @@ export async function GET(request: NextRequest) {
     // Extract note/warning
     const note = $('.alert-box p').first().text().trim();
 
-    // Extract download links by quality
+    // Extract download links by episodes
     const downloads: QualityDownload[] = [];
 
-    $('.download-links-div h4').each((_, element) => {
-      const $h4 = $(element);
-      const qualityText = $h4.text().trim();
+    $('.download-links-div h5').each((_, element) => {
+      const $h5 = $(element);
+      const episodeText = $h5.text().trim();
       
-      // Parse quality and size
-      // Example: "480p [350MB]" or "720p HEVC [650MB]"
-      const match = qualityText.match(/^(.+?)\s*\[(.+?)\]/);
+      // Parse episode info
+      // Example: "-:Episodes: 1:-" or "-:Episodes: 2:-"
+      const episodeMatch = episodeText.match(/Episodes:\s*(\d+)/i);
       
-      if (match) {
-        const quality = match[1].trim();
-        const size = match[2].trim();
+      if (episodeMatch) {
+        const episodeNumber = episodeMatch[1];
+        const quality = `Episode ${episodeNumber}`;
+        const size = 'N/A'; // Size not provided in this format
         
         const options: DownloadOption[] = [];
         
         // Get the next sibling which contains download buttons
-        const $downloadDiv = $h4.next('.downloads-btns-div');
+        const $downloadDiv = $h5.next('.downloads-btns-div');
         
         $downloadDiv.find('a.btn').each((_, linkElement) => {
           const $link = $(linkElement);
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
           if (linkUrl) {
             // Determine link type from text or URL
             let type = 'Unknown';
-            if (linkText.includes('Hub-Cloud [DD]')) {
+            if (linkText.includes('Hub-Cloud') || linkText.includes('[DD]')) {
               type = 'Hub-Cloud';
             } else if (linkText.includes('Direct') || linkText.includes('Drive-link')) {
               type = 'Direct-Drive-link';
@@ -92,8 +93,11 @@ export async function GET(request: NextRequest) {
               type = 'G-Drive';
             } else if (linkText.includes('Telegram')) {
               type = 'Telegram';
-            } 
-            
+            } else if (linkUrl.includes('hubcloud')) {
+              type = 'Hub-Cloud';
+            } else if (linkUrl.includes('filebee') || linkUrl.includes('drive')) {
+              type = 'Direct-Drive-link';
+            }
             
             options.push({
               label: linkText,
@@ -125,10 +129,18 @@ export async function GET(request: NextRequest) {
       downloads,
     };
 
+    console.log('Extracted data:', {
+      title,
+      note: note.substring(0, 100) + '...',
+      totalEpisodes: downloads.length,
+      episodes: downloads.map(d => ({ quality: d.quality, optionsCount: d.options.length }))
+    });
+
     return NextResponse.json({
       success: true,
       data,
       hubcloudLinks, // Separate array of just hubcloud links
+      totalEpisodes: downloads.length,
     });
 
   } catch (error) {
