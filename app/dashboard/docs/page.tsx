@@ -908,6 +908,111 @@ console.log(details);`,
 }`
   },
   {
+    name: "Movies4u M4U Links",
+    method: "GET",
+    endpoint: "/api/movies4u/m4ulinks",
+    provider: "Movies4u",
+    description: "Extract episode download links from Movies4u pages with Hub-Cloud and Direct-Drive-link options",
+    requiresAuth: true,
+    parameters: [
+      { name: "url", type: "string", required: true, description: "Full URL of the Movies4u page containing episode links" },
+    ],
+    tsExample: `const response = await fetch(\`\${baseUrl}/api/movies4u/m4ulinks?url=\${encodeURIComponent(pageUrl)}\`, {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+interface DownloadOption {
+  label: string;
+  url: string;
+  type: string; // Hub-Cloud, Direct-Drive-link, G-Drive, etc.
+}
+
+interface QualityDownload {
+  quality: string; // Episode 1, Episode 2, etc.
+  size: string;
+  options: DownloadOption[];
+}
+
+interface M4ULinksData {
+  title: string;
+  note: string;
+  downloads: QualityDownload[];
+}
+
+interface M4UResponse {
+  success: boolean;
+  data: M4ULinksData;
+  hubcloudLinks: string[];
+  totalEpisodes: number;
+}
+
+const result: M4UResponse = await response.json();
+console.log(result);`,
+    jsExample: `fetch(\`\${baseUrl}/api/movies4u/m4ulinks?url=\${encodeURIComponent(pageUrl)}\`, {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => response.json())
+  .then(result => console.log(result))
+  .catch(error => console.error('Error:', error));`,
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/movies4u/m4ulinks?url=https%3A%2F%2Fmovies4u.foo%2Fseries-episode-page" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`,
+    responseExample: `{
+  "success": true,
+  "data": {
+    "title": "Always Use Official Website Movies4u.Foo",
+    "note": "NOTE: In V-Cloud [Resumable] Download Option Show Download Limit Error then use {Download From Telegram 🔥} Option For Download in V-Cloud",
+    "downloads": [
+      {
+        "quality": "Episode 1",
+        "size": "N/A",
+        "options": [
+          {
+            "label": "🚀 Hub-Cloud [DD]",
+            "url": "https://hubcloud.foo/video/omxbqublmm6kfjy",
+            "type": "Hub-Cloud"
+          },
+          {
+            "label": "🚀 Direct-[Drive-link]",
+            "url": "https://filebee.xyz/file/6669aabebdec4829239352b7",
+            "type": "Direct-Drive-link"
+          }
+        ]
+      },
+      {
+        "quality": "Episode 2",
+        "size": "N/A",
+        "options": [
+          {
+            "label": "🚀 Hub-Cloud [DD]",
+            "url": "https://hubcloud.foo/video/mpsml6h8cfll6c8",
+            "type": "Hub-Cloud"
+          },
+          {
+            "label": "🚀 Direct-[Drive-link]",
+            "url": "https://filebee.xyz/file/6669aabfbdec4829239352f4",
+            "type": "Direct-Drive-link"
+          }
+        ]
+      }
+    ]
+  },
+  "hubcloudLinks": [
+    "https://hubcloud.foo/video/omxbqublmm6kfjy",
+    "https://hubcloud.foo/video/mpsml6h8cfll6c8"
+  ],
+  "totalEpisodes": 8
+}`
+  },
+  {
     name: "HDHub4U Home",
     method: "GET",
     endpoint: "/api/hdhub4u",
