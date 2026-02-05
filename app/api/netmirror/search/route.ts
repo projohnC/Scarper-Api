@@ -18,7 +18,7 @@ interface NetMirrorSearchResponse {
 
 async function searchNetMirror(query: string, timestamp: string): Promise<Record<string, unknown> | { rawResponse: string; contentType: string; searchUrl: string }> {
   try {
-    const baseUrl = await getBaseUrl('nfMirror');
+    const baseUrl = 'https://net22.cc';
     const cookies = await getCookies();
     
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

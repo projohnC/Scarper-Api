@@ -27,7 +27,7 @@ async function getPlayHash(id: string): Promise<string> {
 
         console.log(`Getting play hash for ID: ${id}`);
 
-        const response = await fetch('https://net20.cc/play.php', {
+        const response = await fetch('https://net22.cc/play.php', {
             method: 'POST',
             cache: 'no-cache',
             headers: {
@@ -107,7 +107,7 @@ function addPrefixToSources(data: any): any {
 async function getPlaylist(id: string, timestamp: string, h: string): Promise<any> {
     try {
         const cookies = await getCookies();
-        const playlistUrl = `https://net51.cc/playlist.php?id=${id}&tm=${timestamp}&h=${encodeURIComponent(h)}`;
+        const playlistUrl = `https://net52.cc/playlist.php?id=${id}&tm=${timestamp}&h=${encodeURIComponent(h)}`;
 
         console.log(`Getting playlist from: ${playlistUrl}`);
 

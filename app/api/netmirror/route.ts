@@ -43,7 +43,7 @@ function normalizeImageUrl(url: string | undefined): string {
  */
 async function scrapeNetMirrorData(): Promise<NetMirrorItem[]> {
   try {
-    const baseUrl = await getBaseUrl('nfMirror');
+    const baseUrl = 'https://net22.cc'
     const cookies = await getCookies();
     
     console.log(`Fetching NetMirror content from: ${baseUrl}`);
