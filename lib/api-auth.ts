@@ -87,36 +87,39 @@ export async function validateApiKey(
       };
     }
 
-    // Check key-level quota
-    if (keyRecord.requestCount >= keyRecord.requestQuota) {
-      return {
-        valid: false,
-        error: "API key quota exceeded",
-      };
-    }
+// Admin key (store in env variable or hardcode for now)
+const ADMIN_KEY = process.env.ADMIN_KEY || "sk_Wv4v8TwKE4muWoxW-2UD8zG0CW_CLT6z";
+const isAdmin = keyRecord.key === ADMIN_KEY;
 
-    // Get user data to check user-level quota
-    const [userData] = await db
-      .select()
-      .from(user)
-      .where(eq(user.id, keyRecord.userId))
-      .limit(1);
+// Check key-level quota (skip for admin)
+if (!isAdmin && keyRecord.requestCount >= keyRecord.requestQuota) {
+  return {
+    valid: false,
+    error: "API key quota exceeded",
+  };
+}
 
-    if (!userData) {
-      return {
-        valid: false,
-        error: "User not found",
-      };
-    }
+// Get user data to check user-level quota
+const [userData] = await db
+  .select()
+  .from(user)
+  .where(eq(user.id, keyRecord.userId))
+  .limit(1);
 
-    // Check user-level quota (prevents unlimited access by recreating keys)
-    if (userData.totalRequestCount >= userData.totalRequestQuota) {
-      return {
-        valid: false,
-        error: "User quota exceeded. Cannot get more requests by recreating API keys.",
-      };
-    }
+if (!userData) {
+  return {
+    valid: false,
+    error: "User not found",
+  };
+}
 
+// Check user-level quota (skip for admin)
+if (!isAdmin && userData.totalRequestCount >= userData.totalRequestQuota) {
+  return {
+    valid: false,
+    error: "User quota exceeded. Cannot get more requests by recreating API keys.",
+  };
+}
     // Increment both key-level and user-level request counts
     const newRequestCount = userData.totalRequestCount + 1;
     
