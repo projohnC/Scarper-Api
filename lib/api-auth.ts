@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { sendQuotaWarningEmail, shouldSendQuotaWarning, calculateUsagePercentage } from "@/lib/email-service";
+import { isAdminUser } from "@/lib/admin";
 
 export async function validateApiKey(
   request: NextRequest
@@ -87,18 +88,6 @@ export async function validateApiKey(
       };
     }
 
-// Admin key (store in env variable or hardcode for now)
-const ADMIN_KEY = process.env.ADMIN_KEY || "sk_Wv4v8TwKE4muWoxW-2UD8zG0CW_CLT6z";
-const isAdmin = keyRecord.key === ADMIN_KEY;
-
-// Check key-level quota (skip for admin)
-if (!isAdmin && keyRecord.requestCount >= keyRecord.requestQuota) {
-  return {
-    valid: false,
-    error: "API key quota exceeded",
-  };
-}
-
 // Get user data to check user-level quota
 const [userData] = await db
   .select()
@@ -113,8 +102,34 @@ if (!userData) {
   };
 }
 
+const isAdmin = isAdminUser({ id: userData.id, email: userData.email, name: userData.name });
+const keyQuota = isAdmin ? Number.POSITIVE_INFINITY : 500;
+const userQuota = isAdmin ? Number.POSITIVE_INFINITY : 500;
+
+if (!isAdmin && keyRecord.requestQuota !== 500) {
+  await db
+    .update(apiKey)
+    .set({ requestQuota: 500, updatedAt: new Date() })
+    .where(eq(apiKey.id, keyRecord.id));
+}
+
+if (!isAdmin && userData.totalRequestQuota !== 500) {
+  await db
+    .update(user)
+    .set({ totalRequestQuota: 500, updatedAt: new Date() })
+    .where(eq(user.id, userData.id));
+}
+
+// Check key-level quota (skip for admin)
+if (!isAdmin && keyRecord.requestCount >= keyQuota) {
+  return {
+    valid: false,
+    error: "API key quota exceeded",
+  };
+}
+
 // Check user-level quota (skip for admin)
-if (!isAdmin && userData.totalRequestCount >= userData.totalRequestQuota) {
+if (!isAdmin && userData.totalRequestCount >= userQuota) {
   return {
     valid: false,
     error: "User quota exceeded. Cannot get more requests by recreating API keys.",
@@ -143,13 +158,13 @@ if (!isAdmin && userData.totalRequestCount >= userData.totalRequestQuota) {
 
     // Check if we should send quota warning email (90% usage)
     // Only send if we haven't sent one in the last 24 hours
-    const shouldSendEmail = shouldSendQuotaWarning(newRequestCount, userData.totalRequestQuota);
+    const shouldSendEmail = !isAdmin && shouldSendQuotaWarning(newRequestCount, userQuota);
     const lastWarningTime = userData.lastQuotaWarningAt?.getTime() || 0;
     const now = new Date().getTime();
     const hoursSinceLastWarning = (now - lastWarningTime) / (1000 * 60 * 60);
     
     if (shouldSendEmail && hoursSinceLastWarning >= 24) {
-      const usagePercentage = calculateUsagePercentage(newRequestCount, userData.totalRequestQuota);
+      const usagePercentage = calculateUsagePercentage(newRequestCount, userQuota);
       
       // Update last warning timestamp
       await db
@@ -164,7 +179,7 @@ if (!isAdmin && userData.totalRequestCount >= userData.totalRequestQuota) {
         email: userData.email,
         userName: userData.name,
         requestCount: newRequestCount,
-        requestQuota: userData.totalRequestQuota,
+        requestQuota: userQuota,
         usagePercentage,
         quotaResetDate: userData.quotaResetAt?.toLocaleDateString() || 'Not set',
       }).catch(error => {

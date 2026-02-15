@@ -31,8 +31,6 @@ import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
-const ADMIN_KEY = process.env.ADMIN_KEY || "sk_Wv4v8TwKE4muWoxW-2UD8zG0CW_CLT6z";
-
 type ApiKey = {
   id: string;
   key: string;
@@ -53,6 +51,7 @@ export default function APIsPage() {
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -70,6 +69,14 @@ export default function APIsPage() {
       if (response.ok) {
         const data = await response.json();
         setApiKeys(data);
+
+        const statsResponse = await fetch("/api/dashboard/stats");
+        if (statsResponse.ok) {
+          const stats = await statsResponse.json();
+          setIsAdmin(Boolean(stats?.isAdmin));
+        } else {
+          setIsAdmin(data.some((key: ApiKey) => key.requestQuota < 0));
+        }
       } else {
         toast.error("Failed to fetch API keys");
       }
@@ -83,13 +90,6 @@ export default function APIsPage() {
   const createApiKey = async () => {
     if (!newKeyName.trim()) {
       toast.error("Please enter a name for the API key");
-      return;
-    }
-
-    // Admin can create unlimited keys
-    const isAdmin = session?.user?.apiKey === ADMIN_KEY;
-    if (!isAdmin && apiKeys.length > 0) {
-      toast.error("You can only create one API key. Delete the existing key to create a new one.");
       return;
     }
 
@@ -179,7 +179,7 @@ export default function APIsPage() {
             <h1 className="text-3xl font-bold tracking-tight">API Key</h1>
             <p className="text-muted-foreground mt-2">
               Manage your API keys and monitor usage.{" "}
-              {session?.user?.apiKey === ADMIN_KEY
+              {isAdmin
                 ? "Admins can create multiple keys with unlimited quota."
                 : "You can create one API key with a quota of 500 requests."}
             </p>
@@ -187,9 +187,9 @@ export default function APIsPage() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button disabled={!session || (apiKeys.length > 0 && session.user.apiKey !== ADMIN_KEY)}>
+              <Button disabled={!session || (apiKeys.length > 0 && !isAdmin)}>
                 <KeyIcon className="mr-2 size-4" />
-                {apiKeys.length > 0 && session.user.apiKey !== ADMIN_KEY
+                {apiKeys.length > 0 && !isAdmin
                   ? "Key Already Created"
                   : "Generate API Key"}
               </Button>
@@ -200,7 +200,7 @@ export default function APIsPage() {
                 <DialogTitle>Create API Key</DialogTitle>
                 <DialogDescription>
                   Give your API key a descriptive name.
-                  {session?.user?.apiKey === ADMIN_KEY
+                  {isAdmin
                     ? " As admin, you can create multiple keys with unlimited quota."
                     : " You can only create one key per account with 500 requests."}
                 </DialogDescription>
@@ -297,7 +297,7 @@ export default function APIsPage() {
           <div className="grid gap-4">
             {apiKeys.map((key) => {
               const usagePercentage =
-                key.requestQuota > 0 ? getUsagePercentage(key.requestCount, key.requestQuota) : 100;
+                key.requestQuota > 0 ? getUsagePercentage(key.requestCount, key.requestQuota) : 0;
               return (
                 <Card key={key.id} className="p-6">
                   <div className="flex items-start justify-between">
@@ -322,7 +322,7 @@ export default function APIsPage() {
                           <div className="flex items-center justify-between text-sm mb-1">
                             <span className="text-muted-foreground">Usage</span>
                             <span className="font-medium">
-                              {session?.user?.apiKey === ADMIN_KEY ? "Unlimited" : `${key.requestCount} / ${key.requestQuota} requests`}
+                              {key.requestQuota < 0 ? "Unlimited" : `${key.requestCount} / ${key.requestQuota} requests`}
                             </span>
                           </div>
                           <div className="w-full bg-muted rounded-full h-2">
@@ -334,7 +334,7 @@ export default function APIsPage() {
                                   ? "bg-yellow-500"
                                   : "bg-green-500"
                               }`}
-                              style={{ width: `${usagePercentage}%` }}
+                              style={{ width: `${key.requestQuota < 0 ? 100 : usagePercentage}%` }}
                             />
                           </div>
                         </div>
