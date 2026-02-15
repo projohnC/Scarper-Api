@@ -1,6 +1,7 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
+import
+{ Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+const ADMIN_KEY = process.env.ADMIN_KEY || "sk_Wv4v8TwKE4muWoxW-2UD8zG0CW_CLT6z";
 
 type ApiKey = {
   id: string;
@@ -315,7 +317,10 @@ export default function APIsPage() {
                         <div className="flex items-center justify-between text-sm mb-1">
                           <span className="text-muted-foreground">Usage</span>
                           <span className="font-medium">
-                            {key.requestCount} / {key.requestQuota} requests
+                           {key.key === ADMIN_KEY
+  ? "Unlimited"
+  : `${key.requestCount} / ${key.requestQuota} requests`}
+
                           </span>
                         </div>
                         <div className="w-full bg-muted rounded-full h-2">
