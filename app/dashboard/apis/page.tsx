@@ -175,16 +175,23 @@ export default function APIsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">API Key</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your API key and monitor usage. You can create one API key with a quota of 500 requests.
-          </p>
+         <p className="text-muted-foreground mt-2">
+  Manage your API key and monitor usage.{" "}
+  {session?.user?.apiKey === ADMIN_KEY
+    ? "Admins can create multiple keys with unlimited quota."
+    : "You can create one API key with a quota of 500 requests."}
+</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button disabled={apiKeys.length > 0}>
-              <KeyIcon className="mr-2 size-4" />
-              {apiKeys.length > 0 ? "Key Already Created" : "Generate API Key"}
-            </Button>
+  <Button disabled={!session || (apiKeys.length > 0 && session.user.apiKey !== ADMIN_KEY)}>
+    <KeyIcon className="mr-2 size-4" />
+    {apiKeys.length > 0 && session.user.apiKey !== ADMIN_KEY
+      ? "Key Already Created"
+      : "Generate API Key"}
+  </Button>
+</DialogTrigger>
+
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -317,9 +324,10 @@ export default function APIsPage() {
                         <div className="flex items-center justify-between text-sm mb-1">
                           <span className="text-muted-foreground">Usage</span>
                           <span className="font-medium">
-                           {key.key === ADMIN_KEY
+                           {session?.user?.apiKey === ADMIN_KEY
   ? "Unlimited"
   : `${key.requestCount} / ${key.requestQuota} requests`}
+
 
                           </span>
                         </div>
