@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+const ADMIN_KEY = "sk_Wv4v8TwKE4muWoxW-2UD8zG0CW_CLT6z"; // same as backend
+
 
 type DashboardStats = {
   totalApiCalls: number;
@@ -153,7 +155,10 @@ export default function DashboardPage() {
               {stats?.activeKeys || 0}
             </span>
             <span className="text-xs text-muted-foreground">
-              1 key maximum
+            <span className="text-xs text-muted-foreground">
+  {session?.user?.apiKey === ADMIN_KEY ? "Unlimited keys" : "1 key maximum"}
+</span>
+
             </span>
           </div>
         </Card>
