@@ -15,15 +15,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-const ADMIN_KEY = "sk_Wv4v8TwKE4muWoxW-2UD8zG0CW_CLT6z"; // same as backend
-
 
 type DashboardStats = {
   totalApiCalls: number;
-  totalQuota: number;
+  totalQuota: number | null;
   activeKeys: number;
   successRate: string;
   lastUsed: string | null;
+  isAdmin: boolean;
+  keyLimitText: string;
+  quotaText: string;
 };
 
 export default function DashboardPage() {
@@ -78,9 +79,9 @@ export default function DashboardPage() {
     const diffDays = Math.floor(diffHours / 24);
 
     if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+    return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
   };
 
   if (isPending || isLoadingStats) {
@@ -107,11 +108,7 @@ export default function DashboardPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">
-            <Button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="w-full sm:w-auto"
-            >
+            <Button type="button" onClick={() => router.push("/login")} className="w-full sm:w-auto">
               Go to Login
             </Button>
           </DialogFooter>
@@ -123,57 +120,32 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {session?.user?.name || "User"}!
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Here&apos;s what&apos;s happening with your scraping projects today.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {session?.user?.name || "User"}!</h1>
+        <p className="text-muted-foreground mt-2">Here&apos;s what&apos;s happening with your scraping projects today.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="p-6">
           <div className="flex flex-col space-y-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              Total API Calls
-            </span>
-            <span className="text-3xl font-bold">
-              {stats?.totalApiCalls.toLocaleString() || "0"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Out of {stats?.totalQuota || 0} quota
-            </span>
+            <span className="text-sm font-medium text-muted-foreground">Total API Calls</span>
+            <span className="text-3xl font-bold">{stats?.totalApiCalls.toLocaleString() || "0"}</span>
+            <span className="text-xs text-muted-foreground">Out of {stats?.quotaText || "0"} quota</span>
           </div>
         </Card>
 
         <Card className="p-6">
           <div className="flex flex-col space-y-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              Active API Keys
-            </span>
-            <span className="text-3xl font-bold">
-              {stats?.activeKeys || 0}
-            </span>
-            <span className="text-xs text-muted-foreground">
-            <span className="text-xs text-muted-foreground">
-  {session?.user?.apiKey === ADMIN_KEY ? "Unlimited keys" : "1 key maximum"}
-</span>
-
-            </span>
+            <span className="text-sm font-medium text-muted-foreground">Active API Keys</span>
+            <span className="text-3xl font-bold">{stats?.activeKeys || 0}</span>
+            <span className="text-xs text-muted-foreground">{stats?.keyLimitText || "1 key maximum"}</span>
           </div>
         </Card>
 
         <Card className="p-6">
           <div className="flex flex-col space-y-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              Quota Usage
-            </span>
-            <span className="text-3xl font-bold">
-              {stats?.successRate || "0.0"}%
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Last used {getTimeAgo(stats?.lastUsed || null)}
-            </span>
+            <span className="text-sm font-medium text-muted-foreground">Quota Usage</span>
+            <span className="text-3xl font-bold">{stats?.isAdmin ? "Unlimited" : `${stats?.successRate || "0.0"}%`}</span>
+            <span className="text-xs text-muted-foreground">Last used {getTimeAgo(stats?.lastUsed || null)}</span>
           </div>
         </Card>
       </div>
@@ -195,24 +167,20 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between border-b pb-4">
             <div>
               <p className="font-medium">Request Count</p>
-              <p className="text-sm text-muted-foreground">
-                {stats?.totalApiCalls || 0} requests made
-              </p>
+              <p className="text-sm text-muted-foreground">{stats?.totalApiCalls || 0} requests made</p>
             </div>
             <span className="text-sm text-blue-600">
-              {stats?.totalQuota ? Math.round((stats.totalApiCalls / stats.totalQuota) * 100) : 0}% used
+              {stats?.isAdmin || !stats?.totalQuota
+                ? "Unlimited"
+                : `${Math.round((stats.totalApiCalls / stats.totalQuota) * 100)}% used`}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Last Activity</p>
-              <p className="text-sm text-muted-foreground">
-                {getTimeAgo(stats?.lastUsed || null)}
-              </p>
+              <p className="text-sm text-muted-foreground">{getTimeAgo(stats?.lastUsed || null)}</p>
             </div>
-            <span className="text-sm text-green-600">
-              {stats?.lastUsed ? "Recent" : "No activity"}
-            </span>
+            <span className="text-sm text-green-600">{stats?.lastUsed ? "Recent" : "No activity"}</span>
           </div>
         </div>
       </Card>
