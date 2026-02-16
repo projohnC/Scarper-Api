@@ -348,10 +348,21 @@ BETTER_AUTH_URL="http://localhost:3000"
 # These are fetched from remote JSON for easy updates
 
 # Admin detection (optional, comma-separated)
-# Admin users get unlimited quota and can create multiple API keys
+# Use stable unique identifiers only (email/user id).
 ADMIN_EMAILS="admin@example.com"
-ADMIN_USERNAMES="adminUsername"
 ADMIN_USER_IDS="user_id_1,user_id_2"
+# Optional admin quota override: set -1 for unlimited (default), or a positive number.
+ADMIN_REQUEST_QUOTA=-1
+
+# Default quota for non-admin users (optional, defaults to 500)
+DEFAULT_USER_QUOTA=500
+
+# Optional: CORS (for browser apps on another domain)
+# Comma-separated list of origins, or * to allow all
+CORS_ALLOWED_ORIGINS="https://your-frontend.example.com"
+# Include x-api-key for preflighted API-key requests
+CORS_ALLOWED_HEADERS="Content-Type, Authorization, x-api-key"
+CORS_ALLOWED_METHODS="GET, POST, PUT, PATCH, DELETE, OPTIONS"
 
 # Optional: Rate Limiting
 RATE_LIMIT_REQUESTS=100
