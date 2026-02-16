@@ -11,10 +11,6 @@ interface Provider {
  */
 type ProvidersData = Record<string, Provider>;
 
-const providerUrlOverrides: Record<string, string> = {
-  hdhub: process.env.HDHUB4U_BASE_URL || "https://new3.hdhub4u.fo/",
-};
-
 /**
  * Cached providers data
  */
@@ -54,11 +50,6 @@ async function fetchProviders(): Promise<ProvidersData> {
  * @throws Error if provider key is not found
  */
 export async function getBaseUrl(key: string): Promise<string> {
-  const overrideUrl = providerUrlOverrides[key];
-  if (overrideUrl) {
-    return overrideUrl;
-  }
-
   const providers = await fetchProviders();
 
   const provider = providers[key];
