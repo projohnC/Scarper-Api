@@ -173,6 +173,37 @@ console.log(data);
 - `GET /api/hdhub4u/details?url={url}` - Extract post metadata and available links
 - `GET /api/hdhub4u/extractor?url={url}` - Resolve a provider page URL into a direct/usable stream or download link
 
+Example TypeScript client usage (`lib/hdhub4u-api.ts`):
+
+```ts
+import { Hdhub4uApiClient } from "@/lib/hdhub4u-api";
+
+const hdhub = new Hdhub4uApiClient({
+  baseUrl: process.env.SCRAPER_API_BASE || "https://screenscapeapi.dev",
+  apiKey: process.env.SCRAPER_API_KEY,
+});
+
+// 1) Latest content listing
+const latest = await hdhub.latest(1);
+
+// 2) Search HDHub4u posts
+const search = await hdhub.search("avengers", 1);
+
+// 3) Extract post metadata and available links
+const details = await hdhub.postDetails(search.data.results[0].url);
+
+// 4) Resolve provider URL into direct download / stream link
+const providerUrl = details.data.downloadLinks[0].url;
+const resolved = await hdhub.resolveProviderUrl(providerUrl);
+
+console.log({
+  latestCount: latest.data.totalItems,
+  searchCount: search.data.totalResults,
+  title: details.data.title,
+  redirectUrl: resolved.redirectUrl,
+});
+```
+
 ### Build a search-and-play website (authorized content only)
 
 If you have the legal rights to the content, you can build a website that:
