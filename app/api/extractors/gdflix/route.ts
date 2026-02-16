@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Make request to external extractor API
     const response = await fetch(
-      `https://scarperapi-extractor-7tr4.vercel.app/api/gdflix?url=${encodeURIComponent(url)}`,
+      `https://scarperapi-8lk0.onrender.com//api/gdflix?url=${encodeURIComponent(url)}`,
       {
         method: 'POST',
         headers: {
