@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
+import { getCookies } from '@/lib/baseurl';
 
 const headers = {
   'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   Accept:
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
+const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z|srt)(\?|$)/i;
+const DIRECT_SIGNAL_PATTERN = /(token=|download=1|\/dl\/|\/download\/|hub\.fsl-|hubcdn|hubcloud|pixeldrain|mediafire|gofile)/i;
+const BUTTON_TEXT_PATTERN = /(direct|instant|download here|download now|generate|get link|create download|continue|proceed)/i;
+const PROVIDER_HOST_PATTERN = /(hubdrive|hubcloud|hubcdn|pixeldrain|gofile|mediafire|dropapk|terabox|fsl-lx|filepress|workers\.dev)/i;
+
 function encode(value: string | undefined): string {
   if (!value) {
     return '';
   }
+
   return btoa(value.toString());
 }
 
@@ -20,287 +27,579 @@ function decode(value: string | undefined): string {
   if (!value || value === undefined) {
     return '';
   }
+
   return atob(value.toString());
 }
 
 function pen(value: string): string {
   return value.replace(/[a-zA-Z]/g, function (char: string) {
     return String.fromCharCode(
-      (char <= 'Z' ? 90 : 122) >= (char.charCodeAt(0) + 13)
+      (char <= 'Z' ? 90 : 122) >= char.charCodeAt(0) + 13
         ? char.charCodeAt(0) + 13
         : char.charCodeAt(0) + 13 - 26,
     );
   });
 }
 
-async function getRedirectLinks(link: string): Promise<string> {
+function normalizeUrl(value: string | undefined, baseUrl: string): string | null {
+  if (!value) {
+    return null;
+  }
+
   try {
-    console.log('Fetching page:', link);
-    
-    // Add timeout to fetch request
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    const res = await fetch(link, { 
-      headers, 
-      signal: controller.signal 
-    }).catch(err => {
-      console.log('Fetch error:', err.message);
-      return null;
+    return new URL(value.trim(), baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function isLikelyDirectUrl(url: string): boolean {
+  return DIRECT_FILE_PATTERN.test(url) || DIRECT_SIGNAL_PATTERN.test(url);
+}
+
+function isLikelyProviderUrl(url: string): boolean {
+  return PROVIDER_HOST_PATTERN.test(url);
+}
+
+function isHdhubPostUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const pathParts = parsed.pathname.split('/').filter(Boolean);
+
+    return parsed.hostname.includes('hdhub4u') && pathParts.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function isHomeOrDisclaimer(url: string, sourceUrl: string): boolean {
+  try {
+    const result = new URL(url);
+    const source = new URL(sourceUrl);
+
+    if (result.hostname !== source.hostname) {
+      return false;
+    }
+
+    const path = result.pathname.replace(/\/+$/, '') || '/';
+    return path === '/' || path.startsWith('/disclaimer');
+  } catch {
+    return false;
+  }
+}
+
+function buildCookieHeader(cookies: Map<string, string>): string {
+  return Array.from(cookies.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+}
+
+function updateCookiesFromResponse(response: Response, cookies: Map<string, string>) {
+  const responseHeaders = response.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+
+  const setCookieHeaders = responseHeaders.getSetCookie?.() || [];
+
+  for (const cookie of setCookieHeaders) {
+    const [pair] = cookie.split(';');
+    const [name, value] = pair.split('=');
+
+    if (name && value !== undefined) {
+      cookies.set(name.trim(), value.trim());
+    }
+  }
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
     });
-    
+  } catch (error) {
+    console.log('Fetch error:', error instanceof Error ? error.message : String(error));
+    return null;
+  } finally {
     clearTimeout(timeoutId);
-    
-    if (!res || !res.ok) {
-      console.log('Failed to fetch page, status:', res?.status);
-      return link;
-    }
-    
-    const resText = await res.text();
+  }
+}
 
-    // Try multiple regex patterns to find encoded data
-    const patterns = [
-      /ck\('_wp_http_\d+','([^']+)'/g,
-      /setCookie\('_wp_http_\d+',\s*'([^']+)'/g,
-      /document\.cookie\s*=\s*["']_wp_http_\d+=['"]([^'"]+)['"]/g,
-      /s\('o',\s*'([^']+)'/g, // For gadgetsweb.xyz pattern: s('o','encoded_string',...)
-    ];
+function extractScriptUrls(html: string, baseUrl: string): string[] {
+  const patterns = [
+    /(?:window\.location(?:\.href)?|location\.href)\s*=\s*["']([^"']+)["']/gi,
+    /(?:file|source|url|link|downloadUrl|redirectUrl)\s*[:=]\s*["']([^"']+)["']/gi,
+    /open\(["']([^"']+)["']/gi,
+  ];
 
-    let combinedString = '';
+  const links = new Set<string>();
 
-    for (const regex of patterns) {
-      let match;
-      while ((match = regex.exec(resText)) !== null) {
-        combinedString += match[1];
-      }
-      if (combinedString) {
-        console.log('Found encoded data with pattern:', regex.source);
-        break;
+  for (const regex of patterns) {
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(html)) !== null) {
+      const normalized = normalizeUrl(match[1], baseUrl);
+      if (normalized) {
+        links.add(normalized);
       }
     }
+  }
 
-    if (!combinedString) {
-      console.log('No encoded data found in HTML');
-      
-      // Log a sample of the HTML to help debug
-      console.log('HTML sample (first 500 chars):', resText.substring(0, 500));
-      
-      // Check for iframe src or meta refresh
-      const $ = load(resText);
-      
-      // Check for forms with hidden inputs that might contain links
-      const formAction = $('form').first().attr('action');
-      const hiddenInput = $('form input[type="hidden"]').first().attr('value');
-      if (formAction || hiddenInput) {
-        console.log('Found form:', { formAction, hiddenInput });
-        if (hiddenInput && hiddenInput.startsWith('http')) {
-          return hiddenInput;
-        }
-      }
-      
-      // Check for iframe
-      const iframeSrc = $('iframe').first().attr('src');
-      if (iframeSrc && iframeSrc.startsWith('http')) {
-        console.log('Found iframe redirect:', iframeSrc);
-        return iframeSrc;
-      }
-      
-      // Check for meta refresh
-      const metaRefresh = $('meta[http-equiv="refresh"]').attr('content');
-      if (metaRefresh) {
-        const urlMatch = metaRefresh.match(/url=(.+)/i);
-        if (urlMatch && urlMatch[1]) {
-          console.log('Found meta refresh:', urlMatch[1]);
-          return urlMatch[1];
-        }
-      }
-      
-      // Look for buttons or links with data attributes
-      const dataLink = $('[data-link]').first().attr('data-link');
-      const dataUrl = $('[data-url]').first().attr('data-url');
-      if (dataLink && dataLink.startsWith('http')) {
-        console.log('Found data-link:', dataLink);
-        return dataLink;
-      }
-      if (dataUrl && dataUrl.startsWith('http')) {
-        console.log('Found data-url:', dataUrl);
-        return dataUrl;
-      }
-      
-      // Look for JavaScript variables with URLs
-      const jsUrlPatterns = [
-        /var\s+url\s*=\s*["']([^"']+)["']/,
-        /var\s+link\s*=\s*["']([^"']+)["']/,
-        /var\s+download\s*=\s*["']([^"']+)["']/,
-        /downloadUrl\s*=\s*["']([^"']+)["']/,
-        /window\.location\s*=\s*["']([^"']+)["']/,
-        /window\.location\.href\s*=\s*["']([^"']+)["']/,
-        /setTimeout\([^,]*window\.location\.href\s*=\s*["']([^"']+)["']/,
-      ];
-      
-      for (const pattern of jsUrlPatterns) {
-        const match = resText.match(pattern);
-        if (match && match[1] && match[1].startsWith('http')) {
-          console.log('Found URL in JavaScript:', match[1]);
-          return match[1];
-        }
-      }
-      
-      // Try to find download links
-      const linkPatterns = [
-        'a[href*="hubdrive"]',
-        'a[href*="hubcdn"]',
-        'a[href*="gofile"]',
-        'a[href*="dropapk"]',
-        'a[href*="intoupload"]',
-        'a[href*="terabox"]',
-      ];
+  return [...links];
+}
 
-      for (const pattern of linkPatterns) {
-        const foundLink = $(pattern).first().attr('href');
-        if (foundLink) {
-          console.log(`Found link with pattern ${pattern}:`, foundLink);
-          return foundLink;
-        }
-      }
+function extractPriorityLinks(html: string, baseUrl: string): string[] {
+  const $ = load(html);
+  const prioritized: string[] = [];
+  const fallback: string[] = [];
 
-      console.log('No download links found, returning original link');
-      return link;
+  const pushLink = (value: string | undefined, text = '') => {
+    const normalized = normalizeUrl(value, baseUrl);
+    if (!normalized) {
+      return;
     }
+
+    if (BUTTON_TEXT_PATTERN.test(text) || isLikelyDirectUrl(normalized)) {
+      prioritized.push(normalized);
+      return;
+    }
+
+    fallback.push(normalized);
+  };
+
+  $('a[href]').each((_, element) => {
+    const anchor = $(element);
+    pushLink(anchor.attr('href'), anchor.text().trim().toLowerCase());
+
+    const onclick = anchor.attr('onclick');
+    if (onclick) {
+      const onclickMatch = onclick.match(/["'](https?:\/\/[^"']+|\/[^"']+)["']/i);
+      if (onclickMatch?.[1]) {
+        pushLink(onclickMatch[1], anchor.text().trim().toLowerCase());
+      }
+    }
+  });
+
+  $('button[onclick], input[onclick]').each((_, element) => {
+    const onclick = $(element).attr('onclick');
+    if (!onclick) {
+      return;
+    }
+
+    const onclickMatch = onclick.match(/["'](https?:\/\/[^"']+|\/[^"']+)["']/i);
+    if (onclickMatch?.[1]) {
+      pushLink(onclickMatch[1], $(element).text().trim().toLowerCase());
+    }
+  });
+
+  const metaRefresh = $('meta[http-equiv="refresh"]').attr('content');
+  if (metaRefresh) {
+    const match = metaRefresh.match(/url\s*=\s*([^;]+)/i);
+    if (match?.[1]) {
+      pushLink(match[1].trim().replace(/^['"]|['"]$/g, ''), 'refresh');
+    }
+  }
+
+  $('iframe[src], source[src], video[src]').each((_, element) => {
+    const src = $(element).attr('src');
+    pushLink(src, 'embed');
+  });
+
+  for (const link of extractScriptUrls(html, baseUrl)) {
+    pushLink(link, 'script');
+  }
+
+  const deduped = new Set<string>();
+  for (const item of [...prioritized, ...fallback]) {
+    deduped.add(item);
+  }
+
+  return [...deduped];
+}
+
+async function submitCandidateForms(
+  html: string,
+  pageUrl: string,
+  cookies: Map<string, string>,
+): Promise<string | null> {
+  const $ = load(html);
+
+  const forms = $('form').toArray();
+
+  for (const formElement of forms) {
+    const form = $(formElement);
+    const formText = form.text().trim().toLowerCase();
+
+    if (formText && !BUTTON_TEXT_PATTERN.test(formText) && !/download|link/.test(formText)) {
+      continue;
+    }
+
+    const action = normalizeUrl(form.attr('action') || pageUrl, pageUrl);
+    if (!action) {
+      continue;
+    }
+
+    const method = (form.attr('method') || 'GET').toUpperCase();
+    const params = new URLSearchParams();
+
+    form.find('input').each((_, inputEl) => {
+      const input = $(inputEl);
+      const name = input.attr('name');
+      if (!name) {
+        return;
+      }
+
+      params.append(name, input.attr('value') || '');
+    });
+
+    const cookieHeader = buildCookieHeader(cookies);
+    const requestHeaders: Record<string, string> = {
+      ...headers,
+      Referer: pageUrl,
+    };
+
+    if (cookieHeader) {
+      requestHeaders.Cookie = cookieHeader;
+    }
+
+    let targetUrl = action;
+    let requestOptions: RequestInit = {
+      method,
+      headers: requestHeaders,
+      redirect: 'follow',
+      cache: 'no-store',
+    };
+
+    if (method === 'GET') {
+      const separator = action.includes('?') ? '&' : '?';
+      targetUrl = `${action}${params.toString() ? `${separator}${params.toString()}` : ''}`;
+    } else {
+      requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+      requestOptions = {
+        ...requestOptions,
+        body: params.toString(),
+      };
+    }
+
+    const response = await fetchWithTimeout(targetUrl, requestOptions);
+    if (!response) {
+      continue;
+    }
+
+    updateCookiesFromResponse(response, cookies);
+
+    if (isLikelyDirectUrl(response.url)) {
+      return response.url;
+    }
+
+    const body = await response.text();
+    const links = extractPriorityLinks(body, response.url);
+    const direct = links.find(isLikelyDirectUrl);
+
+    if (direct) {
+      return direct;
+    }
+
+    const nextStep = links.find(Boolean);
+    if (nextStep) {
+      return nextStep;
+    }
+  }
+
+  return null;
+}
+
+async function decodeLegacyPayload(resText: string, originalLink: string): Promise<string | null> {
+  const patterns = [
+    /ck\('_wp_http_\d+','([^']+)'/g,
+    /setCookie\('_wp_http_\d+',\s*'([^']+)'/g,
+    /document\.cookie\s*=\s*["']_wp_http_\d+=['"]([^'"]+)['"]/g,
+    /s\('o',\s*'([^']+)'/g,
+  ];
+
+  let combinedString = '';
+
+  for (const regex of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(resText)) !== null) {
+      combinedString += match[1];
+    }
+
+    if (combinedString) {
+      break;
+    }
+  }
+
+  if (!combinedString) {
+    return null;
+  }
+
+  try {
+    let decodedString = '';
 
     try {
-      console.log('Starting decode process...');
-      console.log('Combined string length:', combinedString.length);
-      
-      // Try the standard decode: decode(pen(decode(decode(combinedString))))
-      let decodedString;
+      decodedString = decode(pen(decode(decode(combinedString))));
+    } catch {
       try {
-        decodedString = decode(pen(decode(decode(combinedString))));
-      } catch (firstDecodeError) {
-        console.log('Standard decode failed, trying alternative methods');
-        
-        // Try just triple decode
-        try {
-          decodedString = decode(decode(decode(combinedString)));
-        } catch (e) {
-          // Try double decode
-          decodedString = decode(decode(combinedString));
-        }
+        decodedString = decode(decode(decode(combinedString)));
+      } catch {
+        decodedString = decode(decode(combinedString));
       }
-      
-      console.log('Successfully decoded string');
-      const data = JSON.parse(decodedString);
-      console.log('Decoded data:', data);
-      
-      // Handle different data formats
-      if (data.o || data.l) {
-        // New format with 'o' (base64 encoded link) and/or 'l' (redirect link)
-        console.log('Using new data format with o/l properties');
-        
-        // Try to decode the 'o' property first to get the actual download link
-        if (data.o) {
-          const downloadLink = decode(data.o);
-          console.log('Decoded download link:', downloadLink);
-          
-          if (downloadLink && downloadLink.startsWith('http')) {
-            return downloadLink;
-          }
-        }
-        
-        // If 'o' doesn't contain a valid URL, try the 'l' property
-        if (data.l && data.l.startsWith('http')) {
-          console.log('Using redirect link from l property:', data.l);
-          return data.l;
-        }
-        
-        // If both fail, return what we got from 'o'
-        return data.o ? decode(data.o) : link;
-      } else if (data?.data && data?.wp_http1) {
-        // Old format with 'data' and 'wp_http1' properties
-        console.log('Using old data format with data/wp_http1 properties');
-        
-        const token = encode(data.data);
-        const blogLink = data.wp_http1 + '?re=' + token;
-
-        // Wait for the specified time
-        const waitTime = (Number(data?.total_time) + 3) * 1000;
-        console.log(`Waiting ${waitTime}ms before proceeding...`);
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
-
-        console.log('Fetching blogLink:', blogLink);
-
-        let vcloudLink = 'Invalid Request';
-        let attempts = 0;
-        const maxAttempts = 5;
-
-        while (vcloudLink.includes('Invalid Request') && attempts < maxAttempts) {
-          const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 10000);
-          
-          const blogRes = await fetch(blogLink, { 
-            headers, 
-            signal: controller2.signal 
-          }).catch(err => {
-            console.log('Blog fetch error:', err.message);
-            return null;
-          });
-          
-          clearTimeout(timeoutId2);
-          
-          if (!blogRes) {
-            console.log('Failed to fetch blog link');
-            break;
-          }
-          
-          const blogText = await blogRes.text();
-
-          if (blogText.includes('Invalid Request')) {
-            console.log('Invalid request, retrying...');
-            attempts++;
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          } else {
-            const reurlMatch = blogText.match(/var reurl = "([^"]+)"/);
-            if (reurlMatch && reurlMatch[1]) {
-              vcloudLink = reurlMatch[1];
-              console.log('Found redirect URL:', vcloudLink);
-              return vcloudLink;
-            }
-            break;
-          }
-        }
-
-        return blogLink;
-      } else {
-        console.log('Unknown data format:', data);
-        return link;
-      }
-    } catch (parseError) {
-      console.log('Decoding/parsing failed:', parseError);
-      console.log('Trying to extract links directly from HTML');
-      const $ = load(resText);
-
-      const linkPatterns = [
-        'a[href*="hubdrive.space"]',
-        'a[href*="gofile.io"]',
-        'a[href*="dropapk.to"]',
-        'a[href*="intoupload.net"]',
-      ];
-
-      for (const pattern of linkPatterns) {
-        const foundLink = $(pattern).first().attr('href');
-        if (foundLink) {
-          console.log(`Found link with pattern ${pattern}:`, foundLink);
-          return foundLink;
-        }
-      }
-
-      console.log('No download links found, returning original link');
-      return link;
     }
-  } catch (err) {
-    console.log('Error in getRedirectLinks:', err);
-    return link;
+
+    const data = JSON.parse(decodedString) as {
+      o?: string;
+      l?: string;
+      data?: string;
+      wp_http1?: string;
+      total_time?: string | number;
+    };
+
+    if (data.o || data.l) {
+      const decodedO = data.o ? decode(data.o) : '';
+
+      if (decodedO.startsWith('http')) {
+        return decodedO;
+      }
+
+      if (data.l?.startsWith('http')) {
+        return data.l;
+      }
+
+      return decodedO || data.l || null;
+    }
+
+    if (data.data && data.wp_http1) {
+      const token = encode(data.data);
+      const blogLink = `${data.wp_http1}?re=${token}`;
+      const waitTime = (Number(data.total_time) + 3) * 1000;
+
+      if (waitTime > 0 && waitTime < 30000) {
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
+
+      const blogRes = await fetchWithTimeout(blogLink, {
+        headers,
+        redirect: 'follow',
+        cache: 'no-store',
+      });
+
+      if (!blogRes) {
+        return blogLink;
+      }
+
+      const blogText = await blogRes.text();
+      const reurlMatch = blogText.match(/var reurl = "([^"]+)"/);
+      return reurlMatch?.[1] || blogRes.url || blogLink;
+    }
+
+    return originalLink;
+  } catch {
+    return null;
   }
+}
+
+async function getRedirectLinks(link: string): Promise<{ finalUrl: string; steps: string[] }> {
+  const cookies = new Map<string, string>();
+  const visited = new Set<string>();
+  const steps: string[] = [];
+  let currentUrl = link;
+
+  for (let hop = 0; hop < 8; hop++) {
+    if (visited.has(currentUrl)) {
+      break;
+    }
+
+    visited.add(currentUrl);
+    steps.push(currentUrl);
+
+    const cookieHeader = buildCookieHeader(cookies);
+    const requestHeaders: Record<string, string> = {
+      ...headers,
+      Referer: currentUrl,
+    };
+
+    if (cookieHeader) {
+      requestHeaders.Cookie = cookieHeader;
+    }
+
+    const response = await fetchWithTimeout(currentUrl, {
+      headers: requestHeaders,
+      redirect: 'follow',
+      cache: 'no-store',
+    });
+
+    if (!response) {
+      break;
+    }
+
+    updateCookiesFromResponse(response, cookies);
+
+    const resolvedUrl = response.url;
+    if (!visited.has(resolvedUrl)) {
+      steps.push(resolvedUrl);
+    }
+
+    const contentDisposition = response.headers.get('content-disposition') || '';
+    const contentType = response.headers.get('content-type') || '';
+
+    if (isLikelyDirectUrl(resolvedUrl)) {
+      return { finalUrl: resolvedUrl, steps };
+    }
+
+    if (/attachment/i.test(contentDisposition) || /application\/octet-stream/i.test(contentType)) {
+      return { finalUrl: resolvedUrl, steps };
+    }
+
+    const html = await response.text();
+
+    const decoded = await decodeLegacyPayload(html, resolvedUrl);
+    if (decoded && decoded !== resolvedUrl) {
+      currentUrl = normalizeUrl(decoded, resolvedUrl) || decoded;
+      if (isLikelyDirectUrl(currentUrl)) {
+        steps.push(currentUrl);
+        return { finalUrl: currentUrl, steps };
+      }
+      continue;
+    }
+
+    const formResult = await submitCandidateForms(html, resolvedUrl, cookies);
+    if (formResult && formResult !== resolvedUrl) {
+      currentUrl = formResult;
+      if (isLikelyDirectUrl(currentUrl)) {
+        steps.push(currentUrl);
+        return { finalUrl: currentUrl, steps };
+      }
+      continue;
+    }
+
+    const links = extractPriorityLinks(html, resolvedUrl);
+    const bestDirect = links.find(isLikelyDirectUrl);
+    if (bestDirect) {
+      steps.push(bestDirect);
+      return { finalUrl: bestDirect, steps };
+    }
+
+    const nextLink = links.find((candidate) => !visited.has(candidate));
+    if (!nextLink) {
+      return { finalUrl: resolvedUrl, steps };
+    }
+
+    currentUrl = nextLink;
+  }
+
+  return { finalUrl: currentUrl, steps };
+}
+
+function extractProviderCandidatesFromHtml(html: string, baseUrl: string): string[] {
+  const links = extractPriorityLinks(html, baseUrl);
+  const providerLinks = links.filter((link) => isLikelyProviderUrl(link) || isLikelyDirectUrl(link));
+
+  return [...new Set(providerLinks)];
+}
+
+async function fetchHdhubPostProviderLinks(postUrl: string): Promise<string[]> {
+  const candidates = new Set<string>();
+  const cookieHeader = await getCookies().catch(() => '');
+  const requestHeaders: Record<string, string> = {
+    ...headers,
+    Referer: postUrl,
+  };
+
+  if (cookieHeader) {
+    requestHeaders.Cookie = cookieHeader;
+  }
+
+  const pageResponse = await fetchWithTimeout(postUrl, {
+    headers: requestHeaders,
+    redirect: 'follow',
+    cache: 'no-store',
+  });
+
+  if (pageResponse) {
+    const html = await pageResponse.text();
+    for (const link of extractProviderCandidatesFromHtml(html, pageResponse.url)) {
+      candidates.add(link);
+    }
+  }
+
+  try {
+    const parsed = new URL(postUrl);
+    const slug = parsed.pathname.split('/').filter(Boolean).pop();
+
+    if (slug) {
+      const wpApiUrl = `${parsed.origin}/wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}&_fields=link,content.rendered`;
+      const wpRes = await fetchWithTimeout(wpApiUrl, {
+        headers: {
+          ...headers,
+          Accept: 'application/json',
+          Referer: parsed.origin,
+          ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+        },
+        redirect: 'follow',
+        cache: 'no-store',
+      });
+
+      if (wpRes && wpRes.ok) {
+        const posts = (await wpRes.json()) as Array<{ content?: { rendered?: string } }>;
+        for (const post of posts) {
+          const rendered = post.content?.rendered;
+          if (!rendered) {
+            continue;
+          }
+
+          for (const link of extractProviderCandidatesFromHtml(rendered, parsed.origin)) {
+            candidates.add(link);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log('Failed WordPress fallback extraction:', error instanceof Error ? error.message : String(error));
+  }
+
+  return [...candidates];
+}
+
+async function handleExtraction(url: string) {
+  const primaryResolution = await getRedirectLinks(url);
+
+  if (!isLikelyDirectUrl(primaryResolution.finalUrl) && isHdhubPostUrl(url) && isHomeOrDisclaimer(primaryResolution.finalUrl, url)) {
+    const providerCandidates = await fetchHdhubPostProviderLinks(url);
+
+    for (const candidate of providerCandidates) {
+      const candidateResolution = await getRedirectLinks(candidate);
+      if (isLikelyDirectUrl(candidateResolution.finalUrl)) {
+        return NextResponse.json({
+          success: true,
+          originalUrl: url,
+          redirectUrl: candidateResolution.finalUrl,
+          steps: [...primaryResolution.steps, ...candidateResolution.steps],
+          candidateUrl: candidate,
+        });
+      }
+    }
+
+    if (providerCandidates.length > 0) {
+      return NextResponse.json({
+        success: true,
+        originalUrl: url,
+        redirectUrl: primaryResolution.finalUrl,
+        steps: primaryResolution.steps,
+        providerCandidates,
+      });
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    originalUrl: url,
+    redirectUrl: primaryResolution.finalUrl,
+    steps: primaryResolution.steps,
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -309,62 +608,40 @@ export async function GET(request: NextRequest) {
     const url = searchParams.get('url');
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL parameter is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 });
     }
 
-    console.log('Extracting redirect link for:', url);
-
-    const redirectUrl = await getRedirectLinks(url);
-
-    return NextResponse.json({
-      success: true,
-      originalUrl: url,
-      redirectUrl: redirectUrl,
-    });
-  } catch (error: any) {
+    return await handleExtraction(url);
+  } catch (error) {
     console.error('Error in extractor:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to extract redirect URL',
+        error: error instanceof Error ? error.message : 'Failed to extract redirect URL',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as { url?: string };
     const { url } = body;
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL parameter is required in request body' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'URL parameter is required in request body' }, { status: 400 });
     }
 
-    console.log('Extracting redirect link for:', url);
-
-    const redirectUrl = await getRedirectLinks(url);
-
-    return NextResponse.json({
-      success: true,
-      originalUrl: url,
-      redirectUrl: redirectUrl,
-    });
-  } catch (error: any) {
+    return await handleExtraction(url);
+  } catch (error) {
     console.error('Error in extractor:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to extract redirect URL',
+        error: error instanceof Error ? error.message : 'Failed to extract redirect URL',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
