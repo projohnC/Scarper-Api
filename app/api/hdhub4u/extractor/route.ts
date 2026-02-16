@@ -12,6 +12,9 @@ const headers = {
 const MAX_RESOLVE_STEPS = 6;
 const MAX_BRANCHES_PER_PAGE = 8;
 
+const MEDIA_EXT_PATTERN = /(\.m3u8|\.mp4|\.mkv|\.avi|\.mov|\.webm|\.mpd)(\?|$)/i;
+const DIRECT_HOST_PATTERN = /hub\.cooldown\.buzz|hubcdn|hubdrive|pixeldrain|gofile|terabox|usersdrive|dd\.xyz|cdn/i;
+
 function encode(value: string | undefined): string {
   if (!value) return '';
   return btoa(value.toString());
@@ -41,7 +44,7 @@ function toAbsoluteUrl(candidate: string, baseUrl: string): string {
 }
 
 function isLikelyFinalMediaUrl(url: string): boolean {
-  return /(\.m3u8|\.mp4|\.mkv|\.avi|\.mov|\.webm|\.mpd)(\?|$)/i.test(url);
+  return MEDIA_EXT_PATTERN.test(url);
 }
 
 function isLikelyDirectDownloadUrl(url: string): boolean {
@@ -50,7 +53,7 @@ function isLikelyDirectDownloadUrl(url: string): boolean {
     const host = parsed.hostname.toLowerCase();
     const hasToken = parsed.searchParams.has('token') || parsed.searchParams.has('download');
     const isKnownFileHost =
-      /hub\.cooldown\.buzz|hubcdn|hubdrive|pixeldrain|gofile|terabox|usersdrive|dd\.xyz|cdn/i.test(host);
+      DIRECT_HOST_PATTERN.test(host);
 
     if (isKnownFileHost && hasToken) return true;
     if (isKnownFileHost && parsed.pathname.length > 24) return true;
@@ -69,7 +72,7 @@ function scoreCandidate(rawUrl: string, contextText: string): number {
   if (isLikelyDirectDownloadUrl(rawUrl)) score += 120;
 
   if (/download|direct|final|continue|play|get\s*link|stream|token=/i.test(contextText)) score += 55;
-  if (/hub\.cooldown\.buzz|hubdrive|hubcdn|pixeldrain|gofile|terabox/i.test(rawUrl)) score += 65;
+  if (DIRECT_HOST_PATTERN.test(rawUrl)) score += 65;
 
   if (/ad|ads|popunder|short|sponsor|traffic|monetize|redirect/i.test(rawUrl)) score -= 40;
   if (/ad|ads|sponsor/i.test(contextText)) score -= 30;
