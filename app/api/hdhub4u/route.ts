@@ -28,8 +28,9 @@ const REQUEST_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.5',
 };
 
-const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z)(\?|$)/i;
-const DIRECT_HOST_PATTERN = /(hubcdn|hubcloud|hubdrive|pixeldrain|gofile|terabox|dropapk|mediafire|filescdn)/i;
+const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z)(?:\?|#|$)/i;
+const DIRECT_HOST_PATTERN = /(pixeldrain|gofile|terabox|dropapk|mediafire|filescdn)/i;
+const INTERMEDIATE_HOST_PATTERN = /(hubcdn|hubcloud|hubdrive)/i;
 
 function normalizeUrl(value: string | undefined, baseUrl: string): string | null {
   if (!value) return null;
@@ -54,6 +55,10 @@ function detectProvider(url: string): string {
 
 function isLikelyDirectUrl(url: string): boolean {
   return DIRECT_FILE_PATTERN.test(url) || DIRECT_HOST_PATTERN.test(url);
+}
+
+function isPreferredCandidate(url: string): boolean {
+  return isLikelyDirectUrl(url) || INTERMEDIATE_HOST_PATTERN.test(url);
 }
 
 function inferQuality(text: string): string {
@@ -129,7 +134,9 @@ async function resolveProviderUrl(inputUrl: string): Promise<{ directUrl: string
       return { directUrl: directCandidate, steps };
     }
 
-    const nextCandidate = extractedLinks.find((link) => !steps.includes(link));
+    const nextCandidate =
+      extractedLinks.find((link) => isPreferredCandidate(link) && !steps.includes(link)) ||
+      extractedLinks.find((link) => !steps.includes(link));
     if (!nextCandidate) {
       return { directUrl: finalUrl, steps };
     }
