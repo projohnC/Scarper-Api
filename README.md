@@ -167,6 +167,144 @@ console.log(data);
 - `GET /api/netmirror/getpost?id={id}` - Post details
 - `GET /api/netmirror/stream?id={id}` - Stream URLs
 
+#### HDHub4u
+- `GET /api/hdhub4u` - Latest content listing
+- `GET /api/hdhub4u/search?q={query}` - Search HDHub4u posts
+- `GET /api/hdhub4u/details?url={url}` - Extract post metadata and available links
+- `GET /api/hdhub4u/extractor?url={url}` - Resolve a provider page URL into a direct/usable stream or download link
+
+### Build a search-and-play website (authorized content only)
+
+If you have the legal rights to the content, you can build a website that:
+- searches items,
+- opens details,
+- resolves a playable URL, and
+- plays it in an HTML5 player.
+
+> ⚠️ Important: only use this pattern for content you are licensed/authorized to distribute.
+
+Recommended architecture:
+
+1. **Frontend search UI** (title input + results list)
+2. **Backend proxy route** (adds API key server-side, never expose your key in browser code)
+3. **Details + resolver call** to get final media URL
+4. **Playback layer**
+   - MP4/WebM: native `<video>`
+   - HLS (`.m3u8`): `hls.js`
+
+Minimal Next.js API proxy example:
+
+```ts
+// app/api/player/search/route.ts
+import { NextRequest, NextResponse } from "next/server";
+
+export async function GET(req: NextRequest) {
+  const q = req.nextUrl.searchParams.get("q");
+  if (!q) return NextResponse.json({ error: "q is required" }, { status: 400 });
+
+  const upstream = new URL(`${process.env.SCRAPER_API_BASE}/api/hdhub4u/search`);
+  upstream.searchParams.set("q", q);
+
+  const res = await fetch(upstream.toString(), {
+    headers: { "x-api-key": process.env.SCRAPER_API_KEY || "" },
+    cache: "no-store",
+  });
+
+  const body = await res.text();
+  return new NextResponse(body, {
+    status: res.status,
+    headers: { "content-type": res.headers.get("content-type") || "application/json" },
+  });
+}
+```
+
+Minimal client page (search + click-to-play):
+
+```tsx
+"use client";
+
+import { useState } from "react";
+
+type Item = { title: string; url: string; imageUrl?: string };
+
+export default function PlayerPage() {
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState<Item[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  async function onSearch() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/player/search?q=${encodeURIComponent(q)}`);
+      const json = await res.json();
+      setItems(json?.data?.results || []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onPlay(itemUrl: string) {
+    // 1) fetch details
+    const detailsRes = await fetch(`/api/player/details?url=${encodeURIComponent(itemUrl)}`);
+    const details = await detailsRes.json();
+
+    // 2) pick a candidate URL from details payload
+    const candidate = details?.data?.downloadLinks?.[0]?.url;
+    if (!candidate) return;
+
+    // 3) resolve candidate into playable link
+    const playRes = await fetch(`/api/player/extract?url=${encodeURIComponent(candidate)}`);
+    const play = await playRes.json();
+
+    const resolved = play?.data?.url || play?.url || "";
+    setVideoUrl(resolved);
+  }
+
+  return (
+    <main className="mx-auto max-w-3xl p-6 space-y-4">
+      <h1 className="text-2xl font-semibold">Search & Play</h1>
+
+      <div className="flex gap-2">
+        <input
+          className="border rounded px-3 py-2 w-full"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search title"
+        />
+        <button className="border rounded px-4" onClick={onSearch} disabled={loading || !q}>
+          {loading ? "Searching..." : "Search"}
+        </button>
+      </div>
+
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li key={item.url} className="border rounded p-3 flex justify-between gap-3">
+            <span>{item.title}</span>
+            <button className="border rounded px-3" onClick={() => onPlay(item.url)}>
+              Play
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {videoUrl && (
+        <video className="w-full rounded" controls src={videoUrl}>
+          Your browser does not support video playback.
+        </video>
+      )}
+    </main>
+  );
+}
+```
+
+Production checklist:
+- Keep API keys server-side only.
+- Validate/sanitize outbound URLs and allowlist trusted domains.
+- Add retry/circuit-breaker logic for unstable upstream pages.
+- Cache search/detail responses to reduce scraper load.
+- Gracefully handle non-embeddable URLs and CORS failures.
+
 ## 🔐 Authentication
 
 All API endpoints require authentication via API keys.
@@ -208,6 +346,12 @@ BETTER_AUTH_URL="http://localhost:3000"
 
 # Base URLs (optional - managed via providers.json)
 # These are fetched from remote JSON for easy updates
+
+# Admin detection (optional, comma-separated)
+# Admin users get unlimited quota and can create multiple API keys
+ADMIN_EMAILS="admin@example.com"
+ADMIN_USERNAMES="adminUsername"
+ADMIN_USER_IDS="user_id_1,user_id_2"
 
 # Optional: Rate Limiting
 RATE_LIMIT_REQUESTS=100
