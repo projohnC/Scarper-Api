@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
+import { resolveLink } from "@/lib/link-resolver";
 
 interface DownloadLink {
   quality: string;
@@ -63,10 +64,9 @@ export async function GET(request: NextRequest) {
                      $('meta[property="og:image"]').attr('content') || '';
     const description = $('.entry-content p').first().text().trim() || '';
 
-    const downloadLinks: DownloadLink[] = [];
+    const allLinks: { link: DownloadLink, isEpisode: boolean, episodeIndex?: number }[] = [];
     const episodes: Episode[] = [];
-    let currentEpisode: string | null = null;
-    let currentEpisodeLinks: DownloadLink[] = [];
+    let currentEpisodeIndex = -1;
     
     // Extract download links from h3 and h4 tags
     $('h3, h4, h5').each((_, element) => {
@@ -75,16 +75,11 @@ export async function GET(request: NextRequest) {
       
       // Check if this is an episode header
       if (headingText.match(/EPiSODE\s+\d+/i)) {
-        // Save previous episode if exists
-        if (currentEpisode && currentEpisodeLinks.length > 0) {
-          episodes.push({
-            episode: currentEpisode,
-            links: [...currentEpisodeLinks],
-          });
-        }
-        // Start new episode
-        currentEpisode = headingText;
-        currentEpisodeLinks = [];
+        currentEpisodeIndex++;
+        episodes.push({
+          episode: headingText,
+          links: [],
+        });
       } else {
         // Extract links from this heading
         const $links = $heading.find('a');
@@ -105,30 +100,39 @@ export async function GET(request: NextRequest) {
             };
             
             // Check if we're in an episode section
-            if (currentEpisode) {
+            if (currentEpisodeIndex >= 0) {
               // Look for quality indicator in previous sibling or parent
               const qualityMatch = $heading.prev().text().match(/(480p|720p|1080p|4k|2160p)/i) ||
                                   $heading.text().match(/(480p|720p|1080p|4k|2160p)/i);
               if (qualityMatch) {
                 link.type = qualityMatch[1];
               }
-              currentEpisodeLinks.push(link);
+              allLinks.push({ link, isEpisode: true, episodeIndex: currentEpisodeIndex });
             } else {
               // Pack download
-              downloadLinks.push(link);
+              allLinks.push({ link, isEpisode: false });
             }
           }
         });
       }
     });
-    
-    // Save last episode
-    if (currentEpisode && currentEpisodeLinks.length > 0) {
-      episodes.push({
-        episode: currentEpisode,
-        links: [...currentEpisodeLinks],
-      });
-    }
+
+    // Resolve all links in parallel
+    await Promise.all(allLinks.map(async (item) => {
+      item.link.url = await resolveLink(item.link.url);
+    }));
+
+    // Distribute resolved links back to downloadLinks and episodes
+    const downloadLinks: DownloadLink[] = [];
+    allLinks.forEach(item => {
+      if (item.isEpisode) {
+        if (item.episodeIndex !== undefined && episodes[item.episodeIndex]) {
+          episodes[item.episodeIndex].links.push(item.link);
+        }
+      } else {
+        downloadLinks.push(item.link);
+      }
+    });
 
     const movieDetails: MovieDetails = {
       title,
