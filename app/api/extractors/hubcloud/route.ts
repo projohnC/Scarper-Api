@@ -10,13 +10,18 @@ const REQUEST_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
-const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z)(\?|$)/i;
-const DIRECT_HOST_PATTERN = /(hubcdn|hubcloud|hubdrive|pixeldrain|gofile|terabox|dropapk|mediafire|filescdn)/i;
+const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z)(?:\?|#|$)/i;
+const DIRECT_HOST_PATTERN = /(pixeldrain|gofile|terabox|dropapk|mediafire|filescdn)/i;
+const INTERMEDIATE_HOST_PATTERN = /(hubcdn|hubcloud|hubdrive)/i;
 const DIRECT_PATH_PATTERN = /\/(?:d|download|dl)\//i;
 const ACTION_TEXT_PATTERN = /(download|direct|instant|get link|generate|continue|proceed|stream)/i;
 
 function isLikelyDirectUrl(url: string): boolean {
   return DIRECT_FILE_PATTERN.test(url) || DIRECT_PATH_PATTERN.test(url) || DIRECT_HOST_PATTERN.test(url);
+}
+
+function isPreferredCandidate(url: string): boolean {
+  return isLikelyDirectUrl(url) || INTERMEDIATE_HOST_PATTERN.test(url);
 }
 
 function parseSetCookie(value: string): [string, string] | null {
@@ -216,7 +221,7 @@ async function submitDownloadForms(
       return directCandidate;
     }
 
-    const nextCandidate = extractedLinks.find(Boolean);
+    const nextCandidate = extractedLinks.find(isPreferredCandidate) || extractedLinks.find(Boolean);
     if (nextCandidate) {
       return nextCandidate;
     }
@@ -294,7 +299,9 @@ async function resolveHubcloudLink(inputUrl: string): Promise<{ directUrl: strin
       return { directUrl: directCandidate, visited };
     }
 
-    const nextCandidate = extractedLinks.find((candidate) => !visitedSet.has(candidate));
+    const nextCandidate =
+      extractedLinks.find((candidate) => isPreferredCandidate(candidate) && !visitedSet.has(candidate)) ||
+      extractedLinks.find((candidate) => !visitedSet.has(candidate));
     if (!nextCandidate) {
       return { directUrl: finalUrl, visited };
     }
