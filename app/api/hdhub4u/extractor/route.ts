@@ -9,8 +9,9 @@ const headers = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
-const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z|srt)(\?|$)/i;
-const DIRECT_SIGNAL_PATTERN = /(token=|download=1|\/dl\/|\/download\/|hub\.fsl-|hubcdn|hubcloud|pixeldrain|mediafire|gofile)/i;
+const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z|srt)(?:\?|#|$)/i;
+const DIRECT_SIGNAL_PATTERN = /(token=|download=1|\/dl\/|\/download\/|hub\.fsl-|pixeldrain|mediafire|gofile)/i;
+const INTERMEDIATE_SIGNAL_PATTERN = /(hubcdn|hubcloud|hubdrive)/i;
 const BUTTON_TEXT_PATTERN = /(direct|instant|download here|download now|generate|get link|create download|continue|proceed)/i;
 
 function encode(value: string | undefined): string {
@@ -53,6 +54,10 @@ function normalizeUrl(value: string | undefined, baseUrl: string): string | null
 
 function isLikelyDirectUrl(url: string): boolean {
   return DIRECT_FILE_PATTERN.test(url) || DIRECT_SIGNAL_PATTERN.test(url);
+}
+
+function isPreferredCandidate(url: string): boolean {
+  return isLikelyDirectUrl(url) || INTERMEDIATE_SIGNAL_PATTERN.test(url);
 }
 
 function buildCookieHeader(cookies: Map<string, string>): string {
@@ -270,7 +275,7 @@ async function submitCandidateForms(
       return direct;
     }
 
-    const nextStep = links.find(Boolean);
+    const nextStep = links.find(isPreferredCandidate) || links.find(Boolean);
     if (nextStep) {
       return nextStep;
     }
@@ -450,7 +455,9 @@ async function getRedirectLinks(link: string): Promise<{ finalUrl: string; steps
       return { finalUrl: bestDirect, steps };
     }
 
-    const nextLink = links.find((candidate) => !visited.has(candidate));
+    const nextLink =
+      links.find((candidate) => isPreferredCandidate(candidate) && !visited.has(candidate)) ||
+      links.find((candidate) => !visited.has(candidate));
     if (!nextLink) {
       return { finalUrl: resolvedUrl, steps };
     }
