@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
+import { resolveLink } from '@/lib/link-resolver';
 
 const headers = {
   'User-Agent':
@@ -318,11 +319,12 @@ export async function GET(request: NextRequest) {
     console.log('Extracting redirect link for:', url);
 
     const redirectUrl = await getRedirectLinks(url);
+    const resolvedUrl = await resolveLink(redirectUrl);
 
     return NextResponse.json({
       success: true,
       originalUrl: url,
-      redirectUrl: redirectUrl,
+      redirectUrl: resolvedUrl,
     });
   } catch (error: any) {
     console.error('Error in extractor:', error);
@@ -351,11 +353,12 @@ export async function POST(request: NextRequest) {
     console.log('Extracting redirect link for:', url);
 
     const redirectUrl = await getRedirectLinks(url);
+    const resolvedUrl = await resolveLink(redirectUrl);
 
     return NextResponse.json({
       success: true,
       originalUrl: url,
-      redirectUrl: redirectUrl,
+      redirectUrl: resolvedUrl,
     });
   } catch (error: any) {
     console.error('Error in extractor:', error);
