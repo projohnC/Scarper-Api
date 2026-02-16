@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email, name: session.user.name });
+    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email });
 
     const keys = await db
       .select()
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest) {
     const totalApiCalls = keys.reduce((sum, key) => sum + key.requestCount, 0);
     const totalQuotaRaw = keys.reduce((sum, key) => sum + key.requestQuota, 0);
     const hasUnlimitedKey = keys.some((key) => key.requestQuota < 0);
-    const totalQuota = isAdmin || hasUnlimitedKey ? null : totalQuotaRaw;
+    const totalQuota = hasUnlimitedKey ? null : totalQuotaRaw;
 
     const stats = {
       totalApiCalls,
@@ -42,7 +42,7 @@ export async function GET(_req: NextRequest) {
           : null,
       isAdmin,
       keyLimitText: isAdmin ? "Unlimited keys" : "1 key maximum",
-      quotaText: isAdmin || hasUnlimitedKey ? "Unlimited" : `${totalQuotaRaw}`,
+      quotaText: hasUnlimitedKey ? "Unlimited" : `${totalQuotaRaw}`,
     };
 
     return NextResponse.json(stats);

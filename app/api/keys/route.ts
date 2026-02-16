@@ -5,10 +5,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { nanoid } from "nanoid";
 import { eq, and } from "drizzle-orm";
-import { isAdminUser } from "@/lib/admin";
+import { getAdminQuota, getDefaultUserQuota, isAdminUser } from "@/lib/admin";
 
-const DEFAULT_USER_QUOTA = 500;
-const UNLIMITED_QUOTA = -1;
 
 function generateApiKey(): string {
   return `sk_${nanoid(32)}`;
@@ -21,7 +19,7 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email, name: session.user.name });
+    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email });
 
     const keys = isAdmin
       ? await db.select().from(apiKey)
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email, name: session.user.name });
+    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email });
 
     const body = await req.json();
     const { name } = body;
@@ -68,7 +66,9 @@ export async function POST(req: NextRequest) {
 
     const key = generateApiKey();
     const id = nanoid();
-    const requestQuota = isAdmin ? UNLIMITED_QUOTA : DEFAULT_USER_QUOTA;
+    const defaultUserQuota = getDefaultUserQuota();
+    const adminQuota = getAdminQuota();
+    const requestQuota = isAdmin ? adminQuota : defaultUserQuota;
 
     const newKey = await db
       .insert(apiKey)
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       await db
         .update(user)
         .set({
-          totalRequestQuota: DEFAULT_USER_QUOTA,
+          totalRequestQuota: defaultUserQuota,
           updatedAt: new Date(),
         })
         .where(eq(user.id, session.user.id));
@@ -107,7 +107,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email, name: session.user.name });
+    const isAdmin = isAdminUser({ id: session.user.id, email: session.user.email });
 
     const { searchParams } = new URL(req.url);
     const keyId = searchParams.get("id");
