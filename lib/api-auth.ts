@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { sendQuotaWarningEmail, shouldSendQuotaWarning, calculateUsagePercentage } from "@/lib/email-service";
-import { isAdminUser } from "@/lib/admin";
+import { getAdminQuota, getDefaultUserQuota, isAdminUser, isUnlimitedQuota } from "@/lib/admin";
 
 export async function validateApiKey(
   request: NextRequest
@@ -102,34 +102,36 @@ if (!userData) {
   };
 }
 
-const isAdmin = isAdminUser({ id: userData.id, email: userData.email, name: userData.name });
-const keyQuota = isAdmin ? Number.POSITIVE_INFINITY : 500;
-const userQuota = isAdmin ? Number.POSITIVE_INFINITY : 500;
+const isAdmin = isAdminUser({ id: userData.id, email: userData.email });
+const defaultUserQuota = getDefaultUserQuota();
+const adminQuota = getAdminQuota();
+const keyQuota = isAdmin ? adminQuota : defaultUserQuota;
+const userQuota = isAdmin ? adminQuota : defaultUserQuota;
 
-if (!isAdmin && keyRecord.requestQuota !== 500) {
+if (!isAdmin && keyRecord.requestQuota !== defaultUserQuota) {
   await db
     .update(apiKey)
-    .set({ requestQuota: 500, updatedAt: new Date() })
+    .set({ requestQuota: defaultUserQuota, updatedAt: new Date() })
     .where(eq(apiKey.id, keyRecord.id));
 }
 
-if (!isAdmin && userData.totalRequestQuota !== 500) {
+if (!isAdmin && userData.totalRequestQuota !== defaultUserQuota) {
   await db
     .update(user)
-    .set({ totalRequestQuota: 500, updatedAt: new Date() })
+    .set({ totalRequestQuota: defaultUserQuota, updatedAt: new Date() })
     .where(eq(user.id, userData.id));
 }
 
-// Check key-level quota (skip for admin)
-if (!isAdmin && keyRecord.requestCount >= keyQuota) {
+// Check key-level quota
+if (!isUnlimitedQuota(keyQuota) && keyRecord.requestCount >= keyQuota) {
   return {
     valid: false,
     error: "API key quota exceeded",
   };
 }
 
-// Check user-level quota (skip for admin)
-if (!isAdmin && userData.totalRequestCount >= userQuota) {
+// Check user-level quota
+if (!isUnlimitedQuota(userQuota) && userData.totalRequestCount >= userQuota) {
   return {
     valid: false,
     error: "User quota exceeded. Cannot get more requests by recreating API keys.",
