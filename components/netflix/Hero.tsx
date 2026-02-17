@@ -1,9 +1,9 @@
 "use client";
 
-import { Play, Info } from "lucide-react";
+import { Info, MonitorPlay } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { playInVLC } from "@/lib/vlc-utils";
 
 interface HeroProps {
   movie?: {
@@ -16,8 +16,13 @@ interface HeroProps {
 }
 
 const Hero = ({ movie }: HeroProps) => {
-  const router = useRouter();
   if (!movie) return null;
+
+  const handlePlay = () => {
+    if (movie.url) {
+      playInVLC(movie.url);
+    }
+  };
 
   return (
     <div className="relative h-[80vh] w-full">
@@ -44,10 +49,10 @@ const Hero = ({ movie }: HeroProps) => {
           <Button
             size="sm"
             className="bg-white px-5 py-2 text-black hover:bg-white/90 md:px-8 md:py-3 md:text-lg"
-            onClick={() => router.push(`/watch?url=${encodeURIComponent(movie.url || movie.id)}`)}
+            onClick={handlePlay}
           >
-            <Play className="mr-2 h-6 w-6 fill-current" />
-            Play
+            <MonitorPlay className="mr-2 h-6 w-6" />
+            Play in VLC
           </Button>
           <Button size="sm" variant="secondary" className="bg-zinc-500/50 px-5 py-2 text-white hover:bg-zinc-500/70 backdrop-blur-sm md:px-8 md:py-3 md:text-lg">
             <Info className="mr-2 h-4 w-4 md:h-6 md:w-6" />

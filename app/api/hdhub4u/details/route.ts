@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
-import { resolveLink } from "@/lib/link-resolver";
 
 interface DownloadLink {
   quality: string;
@@ -39,6 +38,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // SSRF protection
+    try {
+      const urlObj = new URL(url);
+      if (!urlObj.hostname.includes('hdhub4u') && !urlObj.hostname.includes('4khdhub')) {
+         return NextResponse.json(
+           { error: "Invalid URL domain. Only HDHub4u domains are allowed." },
+           { status: 400 }
+         );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid URL format" },
+        { status: 400 }
+      );
+    }
+
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -64,7 +79,7 @@ export async function GET(request: NextRequest) {
                      $('meta[property="og:image"]').attr('content') || '';
     const description = $('.entry-content p').first().text().trim() || '';
 
-    const allLinks: { link: DownloadLink, isEpisode: boolean, episodeIndex?: number }[] = [];
+    const downloadLinks: DownloadLink[] = [];
     const episodes: Episode[] = [];
     let currentEpisodeIndex = -1;
     
@@ -107,30 +122,13 @@ export async function GET(request: NextRequest) {
               if (qualityMatch) {
                 link.type = qualityMatch[1];
               }
-              allLinks.push({ link, isEpisode: true, episodeIndex: currentEpisodeIndex });
+              episodes[currentEpisodeIndex].links.push(link);
             } else {
               // Pack download
-              allLinks.push({ link, isEpisode: false });
+              downloadLinks.push(link);
             }
           }
         });
-      }
-    });
-
-    // Resolve all links in parallel
-    await Promise.all(allLinks.map(async (item) => {
-      item.link.url = await resolveLink(item.link.url);
-    }));
-
-    // Distribute resolved links back to downloadLinks and episodes
-    const downloadLinks: DownloadLink[] = [];
-    allLinks.forEach(item => {
-      if (item.isEpisode) {
-        if (item.episodeIndex !== undefined && episodes[item.episodeIndex]) {
-          episodes[item.episodeIndex].links.push(item.link);
-        }
-      } else {
-        downloadLinks.push(item.link);
       }
     });
 
