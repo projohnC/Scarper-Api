@@ -87,11 +87,6 @@ async function PlayerWrapper({ url }: { url: string }) {
     );
   }
 
-  const isEmbed = resolved.directUrl.includes('embed') ||
-                  resolved.directUrl.includes('vcloud.icu') ||
-                  resolved.directUrl.includes('player') ||
-                  !resolved.directUrl.match(/\.(mp4|mkv|webm|m4v|mov|avi)(?:\?|#|$)/i);
-
   return (
     <div className="relative h-full w-full group">
         <Link
@@ -102,23 +97,14 @@ async function PlayerWrapper({ url }: { url: string }) {
           <span className="font-medium pr-2">Back to Browse</span>
         </Link>
 
-        {isEmbed ? (
-          <iframe
-            src={resolved.directUrl}
-            className="h-full w-full border-0"
-            allowFullScreen
-            allow="autoplay; encrypted-media"
-          />
-        ) : (
-          <video
-            src={resolved.directUrl}
-            controls
-            autoPlay
-            className="h-full w-full object-contain"
-          >
-            Your browser does not support the video tag.
-          </video>
-        )}
+        <video
+          src={resolved.directUrl}
+          controls
+          autoPlay
+          className="h-full w-full object-contain"
+        >
+          Your browser does not support the video tag.
+        </video>
 
         <div className="absolute bottom-20 left-10 z-40 max-w-2xl text-white opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
           <h1 className="text-3xl font-bold drop-shadow-lg">{details.title}</h1>
