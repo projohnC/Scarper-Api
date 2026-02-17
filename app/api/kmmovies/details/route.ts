@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface DownloadLink {
   quality: string;
@@ -40,6 +41,11 @@ interface KMMoviesDetailsResponse {
 }
 
 export async function GET(request: NextRequest) {
+  const validation = await validateProviderAccess(request, "KMMovies");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get("url");
@@ -76,14 +82,14 @@ export async function GET(request: NextRequest) {
     const title = $(".hero-title").first().text().trim() || $("h1").first().text().trim();
 
     // Try to parse JSON-LD
-    let jsonLdData: any = null;
+    let jsonLdData: Record<string, unknown> | null = null;
     $('script[type="application/ld+json"]').each((_, elem) => {
       try {
         const data = JSON.parse($(elem).html() || "{}");
         if (data["@type"] === "Movie") {
-          jsonLdData = data;
+          jsonLdData = data as Record<string, unknown>;
         }
-      } catch (e) {
+      } catch {
         // Ignore parse errors
       }
     });
@@ -121,13 +127,13 @@ export async function GET(request: NextRequest) {
     const movieInfo: MovieInfo = {};
     
     if (jsonLdData) {
-      movieInfo.movieName = jsonLdData.name;
-      movieInfo.imdbRating = jsonLdData.aggregateRating?.ratingValue;
-      movieInfo.director = jsonLdData.director?.name;
-      movieInfo.starring = jsonLdData.actor?.map((a: any) => a.name).join(", ");
-      movieInfo.genres = jsonLdData.genre?.join(", ");
-      movieInfo.runningTime = jsonLdData.duration;
-      movieInfo.releaseDate = jsonLdData.datePublished;
+      movieInfo.movieName = jsonLdData.name as string;
+      movieInfo.imdbRating = (jsonLdData.aggregateRating as Record<string, unknown>)?.ratingValue as string;
+      movieInfo.director = (jsonLdData.director as Record<string, unknown>)?.name as string;
+      movieInfo.starring = (jsonLdData.actor as Record<string, unknown>[])?.map((a) => a.name as string).join(", ");
+      movieInfo.genres = (jsonLdData.genre as string[])?.join(", ");
+      movieInfo.runningTime = jsonLdData.duration as string;
+      movieInfo.releaseDate = jsonLdData.datePublished as string;
     }
 
     // Fallback or additional info from meta pills

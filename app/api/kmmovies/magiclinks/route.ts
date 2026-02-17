@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface DownloadLink {
   label: string;
@@ -38,13 +39,29 @@ async function resolveUrl(label: string, url: string, referer: string): Promise<
         redirect: "follow",
       });
       const finalUrl = response.url;
+
+      // Try extracting from URL first
       try {
         const urlParams = new URL(finalUrl).searchParams;
         const videoUrl = urlParams.get("videoUrl");
         if (videoUrl) return videoUrl;
-      } catch {
-        // Not a valid URL or no params
+      } catch {}
+
+      // Try parsing HTML if videoUrl was not in the URL
+      if (response.ok) {
+        const html = await response.text();
+        const $ = cheerio.load(html);
+
+        // Try to find in jwplayer setup
+        const scriptContent = $("script").text();
+        const fileMatch = scriptContent.match(/file:\s*["']([^"']+)["']/);
+        if (fileMatch) return fileMatch[1];
+
+        // Try to find in input[id="videoUrl"]
+        const inputValue = $("input#videoUrl").val();
+        if (inputValue && typeof inputValue === 'string') return inputValue;
       }
+
       return finalUrl;
     }
 
@@ -87,22 +104,40 @@ async function resolveUrl(label: string, url: string, referer: string): Promise<
         const html = await response.text();
         const $ = cheerio.load(html);
 
+        let downloadUrl: string | undefined;
         // Try to find the primary download button (R2)
         const fastDl = $("a.btn-primary").attr("href");
         if (fastDl) {
-           return new URL(fastDl, url).toString();
+           downloadUrl = new URL(fastDl, url).toString();
+        } else {
+           // Try to find the secondary download button (Worker/Direct)
+           const secondaryDl = $("a.btn-secondary").attr("href");
+           if (secondaryDl) {
+              downloadUrl = new URL(secondaryDl, url).toString();
+           } else {
+              // Fallback to any button that looks like a download button
+              const downloadButton = $("a.download-button, a:contains('Download Now'), a:contains('Fast Download')").attr("href");
+              if (downloadButton) {
+                 downloadUrl = new URL(downloadButton, url).toString();
+              }
+           }
         }
 
-        // Try to find the secondary download button (Worker/Direct)
-        const secondaryDl = $("a.btn-secondary").attr("href");
-        if (secondaryDl) {
-           return new URL(secondaryDl, url).toString();
-        }
-
-        // Fallback to any button that looks like a download button
-        const downloadButton = $("a.download-button, a:contains('Download Now'), a:contains('Fast Download')").attr("href");
-        if (downloadButton) {
-           return new URL(downloadButton, url).toString();
+        if (downloadUrl) {
+          // Follow one more level to get the final direct link if possible
+          try {
+            const finalResponse = await fetch(downloadUrl, {
+              headers: {
+                "User-Agent": USER_AGENT,
+                "Referer": url
+              },
+              method: "HEAD",
+              redirect: "follow"
+            });
+            return finalResponse.url;
+          } catch {
+             return downloadUrl;
+          }
         }
       }
     }
@@ -114,6 +149,11 @@ async function resolveUrl(label: string, url: string, referer: string): Promise<
 }
 
 export async function GET(request: NextRequest) {
+  const validation = await validateProviderAccess(request, "KMMovies");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get("url");
