@@ -22,6 +22,97 @@ interface MagicLinksResponse {
   error?: string;
 }
 
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+async function resolveUrl(label: string, url: string, referer: string): Promise<string> {
+  try {
+    const upperLabel = label.toUpperCase();
+
+    // Handle WATCH ONLINE links (usually zipzap.lol)
+    if (upperLabel.includes("WATCH ONLINE")) {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": USER_AGENT,
+          "Referer": referer
+        },
+        redirect: "follow",
+      });
+      const finalUrl = response.url;
+      try {
+        const urlParams = new URL(finalUrl).searchParams;
+        const videoUrl = urlParams.get("videoUrl");
+        if (videoUrl) return videoUrl;
+      } catch {
+        // Not a valid URL or no params
+      }
+      return finalUrl;
+    }
+
+    // Handle SKYDROP links
+    if (upperLabel.includes("SKYDROP")) {
+      const idMatch = url.match(/id=([^&]+)/);
+      if (idMatch) {
+        const id = idMatch[1];
+        const baseUrl = new URL(url).origin;
+        const apiUrl = `${baseUrl}/api.php?id=${id}`;
+        const response = await fetch(apiUrl, {
+          headers: {
+            "User-Agent": USER_AGENT,
+            "Referer": url
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.link) {
+            return data.link;
+          }
+        }
+      }
+    }
+
+    // Handle ZIP-ZAP, ULTRA FAST, ONE CLICK, etc.
+    if (
+      upperLabel.includes("ZIP-ZAP") ||
+      upperLabel.includes("ULTRA FAST") ||
+      upperLabel.includes("ONE CLICK") ||
+      url.includes("zipzap.lol")
+    ) {
+       const response = await fetch(url, {
+        headers: {
+          "User-Agent": USER_AGENT,
+          "Referer": referer
+        },
+      });
+      if (response.ok) {
+        const html = await response.text();
+        const $ = cheerio.load(html);
+
+        // Try to find the primary download button (R2)
+        const fastDl = $("a.btn-primary").attr("href");
+        if (fastDl) {
+           return new URL(fastDl, url).toString();
+        }
+
+        // Try to find the secondary download button (Worker/Direct)
+        const secondaryDl = $("a.btn-secondary").attr("href");
+        if (secondaryDl) {
+           return new URL(secondaryDl, url).toString();
+        }
+
+        // Fallback to any button that looks like a download button
+        const downloadButton = $("a.download-button, a:contains('Download Now'), a:contains('Fast Download')").attr("href");
+        if (downloadButton) {
+           return new URL(downloadButton, url).toString();
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Error resolving ${label} (${url}):`, error);
+  }
+
+  return url;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -40,17 +131,15 @@ export async function GET(request: NextRequest) {
     // Fetch the magic links page
     const response = await fetch(url, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         Referer: "https://kmmovies.best/",
       },
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch magic links: ${response.statusText}`);
+      throw new Error(`Failed to fetch magic links: ${response.status} ${response.statusText}`);
     }
 
     const html = await response.text();
@@ -62,7 +151,7 @@ export async function GET(request: NextRequest) {
     $(".file-details p").each((_, elem) => {
       const text = $(elem).text().trim();
       const strongText = $(elem).find("strong").text().trim();
-      const value = text.replace(strongText, "").trim();
+      const value = text.replace(strongText, "").trim().replace(/^:\s*/, "");
 
       if (strongText.includes("File Name:")) {
         fileInfo.fileName = value;
@@ -79,44 +168,25 @@ export async function GET(request: NextRequest) {
     const downloadLinks: DownloadLink[] = [];
     
     $(".download-buttons a.download-button").each((_, elem) => {
-      const url = $(elem).attr("href");
+      const href = $(elem).attr("href");
       const label = $(elem).text().trim();
 
-      if (url && label) {
+      if (href && label) {
         downloadLinks.push({
           label,
-          url,
+          url: href,
         });
       }
     });
 
-    // Resolve final URLs for WATCH ONLINE links
+    // Resolve final URLs
     const resolvedLinks = await Promise.all(
       downloadLinks.map(async (link) => {
-        if (link.label === "WATCH ONLINE" || link.label === "WATCH ONLINE 2") {
-          try {
-            const redirectApiUrl = `https://net-cookie-kacj.vercel.app/api/redirect?url=${encodeURIComponent(link.url)}`;
-            const redirectResponse = await fetch(redirectApiUrl, {
-              headers: {
-                "User-Agent":
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              },
-            });
-
-            if (redirectResponse.ok) {
-              const redirectData = await redirectResponse.json();
-              if (redirectData.data?.finalUrl) {
-                return {
-                  ...link,
-                  url: redirectData.data.finalUrl,
-                };
-              }
-            }
-          } catch (error) {
-            console.error(`Failed to resolve URL for ${link.label}:`, error);
-          }
-        }
-        return link;
+        const resolvedUrl = await resolveUrl(link.label, link.url, url);
+        return {
+          ...link,
+          url: resolvedUrl,
+        };
       })
     );
 
@@ -134,10 +204,7 @@ export async function GET(request: NextRequest) {
 
     const errorResponse: MagicLinksResponse = {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to fetch magic links",
+      error: error instanceof Error ? error.message : "Failed to fetch magic links",
     };
 
     return NextResponse.json(errorResponse, { status: 500 });
