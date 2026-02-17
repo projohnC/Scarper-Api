@@ -18,11 +18,10 @@ const rot13 = function (str: string): string {
 
 const pen = function (value: string): string {
   return value.replace(/[a-zA-Z]/g, function (char: string) {
+    const charCode = char.charCodeAt(0) + 13;
+    const threshold = char <= 'Z' ? 90 : 122;
     return String.fromCharCode(
-      (char <= 'Z' ? 90 : 122) >=
-        (char = char.charCodeAt(0) + 13)
-        ? char
-        : char - 26,
+      threshold >= charCode ? charCode : charCode - 26,
     );
   });
 };
