@@ -69,7 +69,7 @@ async function searchProvider(
       results = data;
     }
     
-    const normalizedResults = results.map((result: Record<string, unknown>) => ({
+    const normalizedResults = results.map((result: any) => ({
       ...result,
       provider: providerName,
     })) as SearchResult[];

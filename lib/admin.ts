@@ -21,7 +21,7 @@ export function isAdminUser(identity: AdminIdentity): boolean {
   const userId = identity.id?.trim().toLowerCase() || "";
   const username = identity.name?.trim().toLowerCase() || "";
 
-  return (
+  return !!(
     (email && adminEmails.includes(email)) ||
     (userId && adminUserIds.includes(userId)) ||
     (username && adminUsernames.includes(username))
