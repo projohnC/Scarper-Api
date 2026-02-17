@@ -90,11 +90,6 @@ export default async function Home() {
       
       {/* Login/Signup Buttons */}
       <div className="fixed top-6 right-6 z-50 flex gap-3">
-        <Link href="/browse">
-          <Button variant="outline" className="bg-red-600 border-red-600 text-white hover:bg-red-700 hover:border-red-700">
-            Netflix UI
-          </Button>
-        </Link>
         <Link href="/login">
           <Button variant="outline" size="default">
             Login

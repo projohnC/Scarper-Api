@@ -8,7 +8,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "ScraperAPI - Free Movie API & Streaming Links | Download & Watch Online",
+  title: "ScraperAPI - Free Movie API & Streaming Links | Download Online",
   description: "Free Movie API for developers. Access streaming links, download options, and movie details from KMMovies, AnimeSalt, NetMirror. Get Bollywood, Hollywood, anime content with free API keys. Best free movie scraper API for movies, TV shows, and anime streaming.",
   keywords: [
     "free movie api",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     "kmmovies api",
     "animesalt api",
     "netmirror api",
-    "watch movies online free",
+    "movies api free",
     "movie streaming api",
     "tv shows api",
     "free content api",
