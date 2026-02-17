@@ -1,25 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as cheerio from "cheerio";
 import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
-
-interface DownloadLink {
-  quality: string;
-  url: string;
-  type?: string;
-}
-
-interface Episode {
-  episode: string;
-  links: DownloadLink[];
-}
-
-interface MovieDetails {
-  title: string;
-  imageUrl: string;
-  description: string;
-  downloadLinks: DownloadLink[];
-  episodes: Episode[];
-}
+import { getPostDetails, resolveProviderUrl } from "@/lib/hdhub4u";
 
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "HDHub4u");
@@ -41,9 +22,12 @@ export async function GET(request: NextRequest) {
     // SSRF protection
     try {
       const urlObj = new URL(url);
-      if (!urlObj.hostname.includes('hdhub4u') && !urlObj.hostname.includes('4khdhub')) {
+      const allowedDomains = ['hdhub4u', '4khdhub', 'gadgetsweb', 'linkstaker', 'sharedrive', 'hubdrive', 'hubcloud'];
+      const isAllowed = allowedDomains.some(domain => urlObj.hostname.includes(domain));
+
+      if (!isAllowed) {
          return NextResponse.json(
-           { error: "Invalid URL domain. Only HDHub4u domains are allowed." },
+           { error: "Invalid URL domain. Only HDHub4u related domains are allowed." },
            { status: 400 }
          );
       }
@@ -54,95 +38,56 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-      },
-    });
+    // Use the library's scraping logic which includes normalization
+    const details = await getPostDetails(url);
 
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: "Failed to fetch movie details" },
-        { status: response.status }
-      );
-    }
+    // Resolve links in parallel to provide direct links as requested by the user
+    // Limit concurrency if needed, but for now we follow the previous turn's request
+    const resolvedLinks = await Promise.all(
+      details.links.map(async (link) => {
+        try {
+          const resolved = await resolveProviderUrl(link.url);
+          return {
+            ...link,
+            url: resolved.directUrl,
+            provider: resolved.provider
+          };
+        } catch {
+          return link;
+        }
+      })
+    );
 
-    const html = await response.text();
-    const $ = cheerio.load(html);
-
-    const title = $('h1.entry-title').text().trim() || 
-                  $('h2').first().text().trim() ||
-                  $('meta[property="og:title"]').attr('content') || '';
-    const imageUrl = $('.entry-content img').first().attr('src') || 
-                     $('meta[property="og:image"]').attr('content') || '';
-    const description = $('.entry-content p').first().text().trim() || '';
-
-    const downloadLinks: DownloadLink[] = [];
-    const episodes: Episode[] = [];
-    let currentEpisodeIndex = -1;
-    
-    // Extract download links from h3 and h4 tags
-    $('h3, h4, h5').each((_, element) => {
-      const $heading = $(element);
-      const headingText = $heading.text().trim();
-      
-      // Check if this is an episode header
-      if (headingText.match(/EPiSODE\s+\d+/i)) {
-        currentEpisodeIndex++;
-        episodes.push({
-          episode: headingText,
-          links: [],
-        });
-      } else {
-        // Extract links from this heading
-        const $links = $heading.find('a');
-        
-        $links.each((index, linkElement) => {
-          const $link = $(linkElement);
-          const linkUrl = $link.attr('href') || '';
-          const linkText = $link.text().trim();
-          
-          // Skip WATCH/PLAYER links
-          if (linkUrl && linkText && 
-              !linkText.toLowerCase().includes('watch') &&
-              !linkText.toLowerCase().includes('player-')) {
-            
-            const link: DownloadLink = {
-              quality: linkText,
-              url: linkUrl,
-            };
-            
-            // Check if we're in an episode section
-            if (currentEpisodeIndex >= 0) {
-              // Look for quality indicator in previous sibling or parent
-              const qualityMatch = $heading.prev().text().match(/(480p|720p|1080p|4k|2160p)/i) ||
-                                  $heading.text().match(/(480p|720p|1080p|4k|2160p)/i);
-              if (qualityMatch) {
-                link.type = qualityMatch[1];
-              }
-              episodes[currentEpisodeIndex].links.push(link);
-            } else {
-              // Pack download
-              downloadLinks.push(link);
+    // Also resolve episode links
+    const resolvedEpisodes = await Promise.all(
+      details.episodes.map(async (episode) => {
+        const links = await Promise.all(
+          episode.links.map(async (link) => {
+            try {
+              const resolved = await resolveProviderUrl(link.url);
+              return {
+                ...link,
+                url: resolved.directUrl,
+                provider: resolved.provider
+              };
+            } catch {
+              return link;
             }
-          }
-        });
-      }
-    });
-
-    const movieDetails: MovieDetails = {
-      title,
-      imageUrl,
-      description,
-      downloadLinks,
-      episodes,
-    };
+          })
+        );
+        return { ...episode, links };
+      })
+    );
 
     return NextResponse.json({
       success: true,
-      data: movieDetails,
+      data: {
+        title: details.title,
+        imageUrl: details.imageUrl,
+        description: details.description,
+        downloadLinks: resolvedLinks,
+        episodes: resolvedEpisodes,
+      },
     });
 
   } catch (error) {

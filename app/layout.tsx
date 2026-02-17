@@ -9,8 +9,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "ScraperAPI - Free Movie API & Streaming Links | Download & Watch Online",
-  description: "Free Movie API for developers. Access streaming links, download options, and movie details from KMMovies, AnimeSalt, NetMirror. Get Bollywood, Hollywood, anime content with free API keys. Best free movie scraper API for movies, TV shows, and anime streaming.",
+  title: "ScraperAPI - High Performance Movie Scraper & Streaming API",
+  description: "The most powerful scraping API for movie details and streaming links. Access HDHub4u, KMMovies, and more with a single developer-friendly endpoint.",
   keywords: [
     "free movie api",
     "free streaming api",
@@ -59,8 +59,8 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://scarperapi.vercel.app",
     siteName: "ScraperAPI",
-    title: "ScraperAPI - Free Movie API & Streaming Links",
-    description: "Free Movie API for developers. Access streaming links, download options from multiple providers. Bollywood, Hollywood, anime content with free API keys.",
+    title: "ScraperAPI - Movie Scraper & Streaming API",
+    description: "Access high-quality streaming links and movie metadata from multiple providers through a powerful, developer-first API.",
     images: [
       {
         url: "/logo.svg",

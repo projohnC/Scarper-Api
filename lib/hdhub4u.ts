@@ -31,7 +31,7 @@ const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z)(?:\?|#|$)/i
 const DIRECT_HOST_PATTERN = /(pixeldrain|gofile|terabox|dropapk|mediafire|filescdn|hubcdn|fsl-lx)/i;
 const INTERMEDIATE_HOST_PATTERN = /(hubcloud|hubdrive)/i;
 
-function normalizeUrl(value: string | undefined, baseUrl: string): string | null {
+export function normalizeUrl(value: string | undefined, baseUrl: string): string | null {
   if (!value) return null;
 
   try {
