@@ -53,17 +53,17 @@ export async function GET(request: NextRequest) {
     const movies: Movie[] = [];
 
     // Parse articles from the site-main section
-    $("section.site-main article.post").each((_, element) => {
+    $("article.movie-card").each((_, element) => {
       const article = $(element);
-      const id = article.attr("id")?.replace("post-", "") || "";
-      const link = article.find("figure a.post-thumbnail");
+      const link = article.find("a").first();
       const url = link.attr("href") || "";
-      const image = link.find("img").attr("src") || "";
-      const imageAlt = link.find("img").attr("alt") || "";
-      const title =
-        article.find("h3.entry-title a").text().trim() || imageAlt;
+      const id = url.split("/").filter(Boolean).pop() || "";
+      const img = article.find("img.poster");
+      const image = img.attr("src") || "";
+      const imageAlt = img.attr("alt") || "";
+      const title = article.find(".movie-title").text().trim() || imageAlt;
 
-      if (id && url && title) {
+      if (url && title) {
         movies.push({
           id,
           title,
@@ -81,13 +81,13 @@ export async function GET(request: NextRequest) {
       last: null as string | null,
     };
 
-    const nextLink = $("nav.pagination a.next").attr("href");
+    const nextLink = $("nav.pager a.next").attr("href");
     if (nextLink) {
       const nextPage = nextLink.match(/\/page\/(\d+)\//);
       pagination.next = nextPage ? nextPage[1] : null;
     }
 
-    const lastLink = $("nav.pagination a.page-numbers")
+    const lastLink = $("nav.pager a.page-numbers")
       .not(".next")
       .not(".current")
       .not(".dots")
