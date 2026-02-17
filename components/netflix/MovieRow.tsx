@@ -3,18 +3,20 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import MovieCard from "./MovieCard";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface MovieRowProps {
   title: string;
-  movies: {
+  movies?: {
     id: string;
     title: string;
     imageUrl: string;
     url: string;
   }[];
+  isLoading?: boolean;
 }
 
-const MovieRow = ({ title, movies }: MovieRowProps) => {
+const MovieRow = ({ title, movies = [], isLoading }: MovieRowProps) => {
   const rowRef = useRef<HTMLDivElement>(null);
   const [isMoved, setIsMoved] = useState(false);
 
@@ -42,9 +44,17 @@ const MovieRow = ({ title, movies }: MovieRowProps) => {
           ref={rowRef}
           className="flex items-center space-x-1 overflow-x-scroll scrollbar-hide md:space-x-2.5 md:p-2"
         >
-          {movies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))}
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-[40vw] min-w-[150px] md:h-[12vw] md:min-w-[240px]">
+                <Skeleton className="h-full w-full bg-zinc-800" />
+              </div>
+            ))
+          ) : (
+            movies.map((movie) => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))
+          )}
         </div>
 
         <ChevronRight

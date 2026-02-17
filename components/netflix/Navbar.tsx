@@ -38,7 +38,7 @@ const Navbar = ({ initialSearchValue = "" }: NavbarProps) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4 lg:gap-10">
           <Link href="/browse">
-            <span className="text-2xl font-bold text-red-600 lg:text-3xl">NETFLIX</span>
+            <span className="text-2xl font-black tracking-tighter text-[#E50914] lg:text-3xl">NETFLIX</span>
           </Link>
           <div className="hidden items-center gap-4 text-sm text-gray-200 lg:flex">
             <Link href="/browse" className="hover:text-gray-400">Home</Link>
@@ -57,6 +57,7 @@ const Navbar = ({ initialSearchValue = "" }: NavbarProps) => {
                 if (!isSearchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
               }}
               className="hover:text-gray-400"
+              aria-label={isSearchOpen ? "Close search" : "Open search"}
             >
               <Search className="h-5 w-5" />
             </button>
@@ -84,7 +85,7 @@ const Navbar = ({ initialSearchValue = "" }: NavbarProps) => {
               </button>
             )}
           </div>
-          <button className="hover:text-gray-400">
+          <button className="hover:text-gray-400" aria-label="View notifications">
             <Bell className="h-5 w-5" />
           </button>
           <div className="h-8 w-8 overflow-hidden rounded bg-zinc-800">
