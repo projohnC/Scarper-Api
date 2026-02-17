@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { getBaseUrl } from '@/lib/baseurl';
+import { resolveLink } from '@/lib/link-resolver';
 
 export interface Content {
   id: string;
@@ -67,6 +68,94 @@ function inferQuality(text: string): string {
   return match?.[1]?.toUpperCase() || 'UNKNOWN';
 }
 
+function b64Decode(value: string | undefined): string {
+  if (!value) return '';
+  return Buffer.from(value, 'base64').toString('utf-8');
+}
+
+function rot13(value: string): string {
+  return value.replace(/[a-zA-Z]/g, function (char: string) {
+    return String.fromCharCode(
+      (char <= 'Z' ? 90 : 122) >= (char.charCodeAt(0) + 13)
+        ? char.charCodeAt(0) + 13
+        : char.charCodeAt(0) + 13 - 26
+    );
+  });
+}
+
+async function getHdhubRedirectLinks(link: string): Promise<string> {
+  try {
+    const res = await fetch(link, { headers: REQUEST_HEADERS, cache: 'no-store' });
+    if (!res.ok) return link;
+
+    const resText = await res.text();
+    const patterns = [
+      /ck\('_wp_http_\d+','([^']+)'/g,
+      /setCookie\('_wp_http_\d+',\s*'([^']+)'/g,
+      /document\.cookie\s*=\s*["']_wp_http_\d+=['"]([^'"]+)['"]/g,
+      /s\('o',\s*'([^']+)'/g,
+    ];
+
+    let combinedString = '';
+    for (const regex of patterns) {
+      let match;
+      while ((match = regex.exec(resText)) !== null) {
+        combinedString += match[1];
+      }
+      if (combinedString) break;
+    }
+
+    if (!combinedString) {
+      const $ = cheerio.load(resText);
+
+      const hiddenInput = $('form input[type="hidden"]').first().attr('value');
+      if (hiddenInput && hiddenInput.startsWith('http')) return hiddenInput;
+
+      const iframeSrc = $('iframe').first().attr('src');
+      if (iframeSrc && iframeSrc.startsWith('http')) return iframeSrc;
+
+      const jsUrlPatterns = [
+        /var\s+url\s*=\s*["']([^"']+)["']/,
+        /var\s+link\s*=\s*["']([^"']+)["']/,
+        /window\.location\.href\s*=\s*["']([^"']+)["']/,
+      ];
+
+      for (const pattern of jsUrlPatterns) {
+        const match = resText.match(pattern);
+        if (match && match[1] && match[1].startsWith('http')) return match[1];
+      }
+
+      return link;
+    }
+
+    try {
+      let decodedString;
+      try {
+        decodedString = b64Decode(rot13(b64Decode(b64Decode(combinedString))));
+      } catch {
+        try {
+          decodedString = b64Decode(b64Decode(b64Decode(combinedString)));
+        } catch {
+          decodedString = b64Decode(b64Decode(combinedString));
+        }
+      }
+
+      const data = JSON.parse(decodedString);
+      if (data.o) {
+        const downloadLink = b64Decode(data.o);
+        if (downloadLink && downloadLink.startsWith('http')) return downloadLink;
+      }
+      if (data.l && data.l.startsWith('http')) return data.l;
+
+      return data.o ? b64Decode(data.o) : link;
+    } catch {
+      return link;
+    }
+  } catch {
+    return link;
+  }
+}
+
 function extractLinksFromHtml(html: string, baseUrl: string): string[] {
   const $ = cheerio.load(html);
   const links = new Set<string>();
@@ -109,40 +198,76 @@ export async function resolveProviderUrl(inputUrl: string): Promise<{ directUrl:
   let currentUrl = inputUrl;
   const steps: string[] = [];
 
+  // If it's a known redirector/shortener pattern used by HDHub4u
+  if (currentUrl.includes('linkstaker') || currentUrl.includes('gadgetsweb') || currentUrl.includes('sharedrive')) {
+    currentUrl = await getHdhubRedirectLinks(currentUrl);
+    steps.push(currentUrl);
+  }
+
+  // Use resolveLink from link-resolver to handle things like hubdrive.space
+  const resolved = await resolveLink(currentUrl);
+  if (resolved !== currentUrl) {
+    currentUrl = resolved;
+    steps.push(currentUrl);
+  }
+
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (isLikelyDirectUrl(currentUrl)) {
+      return { directUrl: currentUrl, steps, provider: detectProvider(currentUrl) };
+    }
+
     steps.push(currentUrl);
 
-    const response = await fetch(currentUrl, {
-      headers: REQUEST_HEADERS,
-      redirect: 'follow',
-      cache: 'no-store',
-    });
+    try {
+      const response = await fetch(currentUrl, {
+        headers: REQUEST_HEADERS,
+        redirect: 'follow',
+        cache: 'no-store',
+      });
 
-    const finalUrl = response.url;
-    if (!steps.includes(finalUrl)) {
-      steps.push(finalUrl);
+      const finalUrl = response.url;
+      if (!steps.includes(finalUrl)) {
+        steps.push(finalUrl);
+      }
+
+      if (isLikelyDirectUrl(finalUrl)) {
+        return { directUrl: finalUrl, steps, provider: detectProvider(finalUrl) };
+      }
+
+      const html = await response.text();
+      const extractedLinks = extractLinksFromHtml(html, finalUrl);
+
+      const directCandidate = extractedLinks.find(isLikelyDirectUrl);
+      if (directCandidate) {
+        return { directUrl: directCandidate, steps, provider: detectProvider(directCandidate) };
+      }
+
+      const nextCandidate =
+        extractedLinks.find((link) => isPreferredCandidate(link) && !steps.includes(link)) ||
+        extractedLinks.find((link) => !steps.includes(link));
+
+      if (!nextCandidate) {
+        return { directUrl: finalUrl, steps, provider: detectProvider(finalUrl) };
+      }
+
+      currentUrl = nextCandidate;
+
+      // If we found a link that might need hdhub specific resolution
+      if (currentUrl.includes('linkstaker') || currentUrl.includes('gadgetsweb')) {
+         currentUrl = await getHdhubRedirectLinks(currentUrl);
+         steps.push(currentUrl);
+      }
+
+      const resolvedAgain = await resolveLink(currentUrl);
+      if (resolvedAgain !== currentUrl) {
+        currentUrl = resolvedAgain;
+        steps.push(currentUrl);
+      }
+
+    } catch (error) {
+      console.error('Error resolving provider URL:', error);
+      break;
     }
-
-    if (isLikelyDirectUrl(finalUrl)) {
-      return { directUrl: finalUrl, steps, provider: detectProvider(finalUrl) };
-    }
-
-    const html = await response.text();
-    const extractedLinks = extractLinksFromHtml(html, finalUrl);
-
-    const directCandidate = extractedLinks.find(isLikelyDirectUrl);
-    if (directCandidate) {
-      return { directUrl: directCandidate, steps, provider: detectProvider(directCandidate) };
-    }
-
-    const nextCandidate =
-      extractedLinks.find((link) => isPreferredCandidate(link) && !steps.includes(link)) ||
-      extractedLinks.find((link) => !steps.includes(link));
-    if (!nextCandidate) {
-      return { directUrl: finalUrl, steps, provider: detectProvider(finalUrl) };
-    }
-
-    currentUrl = nextCandidate;
   }
 
   return { directUrl: currentUrl, steps, provider: detectProvider(currentUrl) };
@@ -164,9 +289,9 @@ export async function getLatestContent(page: string): Promise<Content[]> {
   $('ul.recent-movies li.thumb').each((_, element) => {
     const $li = $(element);
     const $link = $li.find('a').first();
-    const url = $link.attr('href') || '';
+    const url = normalizeUrl($link.attr('href'), baseUrl) || '';
     const $img = $li.find('img').first();
-    const imageUrl = $img.attr('src') || '';
+    const imageUrl = normalizeUrl($img.attr('src'), baseUrl) || '';
     const title = $img.attr('alt') || $img.attr('title') || '';
     const id = url.split('/').filter(Boolean).pop() || '';
 
@@ -200,14 +325,16 @@ export async function searchContent(query: string, page: string): Promise<Conten
     hits?: Array<{ document?: { id?: string; post_title?: string; permalink?: string; post_thumbnail?: string } }>;
   };
 
+  const baseUrl = await getBaseUrl('hdhub');
+
   return (data.hits || [])
     .map((hit) => {
       const doc = hit.document || {};
       return {
         id: String(doc.id || ''),
         title: String(doc.post_title || ''),
-        url: String(doc.permalink || ''),
-        imageUrl: String(doc.post_thumbnail || ''),
+        url: normalizeUrl(String(doc.permalink || ''), baseUrl) || '',
+        imageUrl: normalizeUrl(String(doc.post_thumbnail || ''), baseUrl) || '',
       };
     })
     .filter((item) => Boolean(item.title && item.url));
