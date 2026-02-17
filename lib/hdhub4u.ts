@@ -274,6 +274,16 @@ export async function resolveProviderUrl(inputUrl: string): Promise<{ directUrl:
 }
 
 export async function getLatestContent(page: string): Promise<Content[]> {
+  try {
+    const res = await fetch(`https://scarperapi-8lk0.onrender.com/api/hdhub4u?action=latest&page=${page}`, {
+      headers: { 'x-api-key': process.env.HDHUB_API_KEY || '' },
+      cache: 'no-store'
+    });
+    const json = await res.json();
+    if (json.success && json.data.recentMovies) return json.data.recentMovies;
+  } catch (err) {
+    console.error('API fetch failed, falling back to scraper:', err);
+  }
   const baseUrl = await getBaseUrl('hdhub');
   const fetchUrl = page !== '1' ? `${baseUrl}/page/${page}` : baseUrl;
 
@@ -304,6 +314,16 @@ export async function getLatestContent(page: string): Promise<Content[]> {
 }
 
 export async function searchContent(query: string, page: string): Promise<Content[]> {
+  try {
+    const res = await fetch(`https://scarperapi-8lk0.onrender.com/api/hdhub4u?action=search&q=${encodeURIComponent(query)}&page=${page}`, {
+      headers: { 'x-api-key': process.env.HDHUB_API_KEY || '' },
+      cache: 'no-store'
+    });
+    const json = await res.json();
+    if (json.success && json.data.results) return json.data.results;
+  } catch (err) {
+    console.error('API search failed:', err);
+  }
   const formattedQuery = query.replace(/\s+/g, '+');
   const searchUrl = `https://search.pingora.fyi/collections/post/documents/search?q=${formattedQuery}&query_by=post_title&page=${page}`;
 
@@ -347,6 +367,16 @@ export async function getPostDetails(postUrl: string): Promise<{
   links: DownloadLink[];
   episodes: Episode[];
 }> {
+  try {
+    const res = await fetch(`https://scarperapi-8lk0.onrender.com/api/hdhub4u?action=details&url=${encodeURIComponent(postUrl)}`, {
+      headers: { 'x-api-key': process.env.HDHUB_API_KEY || '' },
+      cache: 'no-store'
+    });
+    const json = await res.json();
+    if (json.success && json.data) return json.data;
+  } catch (err) {
+    console.error('API details failed:', err);
+  }
   const response = await fetch(postUrl, { headers: REQUEST_HEADERS, cache: 'no-store' });
   if (!response.ok) {
     throw new Error(`Failed to fetch details: ${response.status}`);

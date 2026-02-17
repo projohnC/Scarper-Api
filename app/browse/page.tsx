@@ -38,8 +38,12 @@ export default async function BrowsePage({
     );
   }
 
-  const latestMovies = await getLatestContent("1");
-  const moreMovies = await getLatestContent("2");
+  const [latestMovies, moreMovies, trendingMovies, popularMovies] = await Promise.all([
+    getLatestContent("1"),
+    getLatestContent("2"),
+    getLatestContent("3"),
+    getLatestContent("4"),
+  ]);
 
   const featuredMovie = latestMovies[0] || {
     id: "1",
@@ -53,11 +57,12 @@ export default async function BrowsePage({
       <Navbar />
       <Hero movie={featuredMovie} />
 
-      <div className="relative z-10 -mt-32 md:-mt-48 lg:-mt-64">
+      <div className="relative z-10 -mt-32 pb-20 md:-mt-48 lg:-mt-64">
         <MovieRow title="Latest on HdHub4u" movies={latestMovies} />
-        <MovieRow title="Trending Now" movies={moreMovies} />
-        <MovieRow title="Action Movies" movies={latestMovies.slice().reverse()} />
-        <MovieRow title="New Releases" movies={moreMovies.slice().reverse()} />
+        <MovieRow title="Trending Now" movies={trendingMovies} />
+        <MovieRow title="Top Picks for You" movies={moreMovies} />
+        <MovieRow title="New Releases" movies={popularMovies} />
+        <MovieRow title="Action & Adventure" movies={latestMovies.slice().reverse()} />
       </div>
     </main>
   );
