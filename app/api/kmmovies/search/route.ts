@@ -64,16 +64,17 @@ export async function GET(request: NextRequest) {
     const results: Movie[] = [];
 
     // Parse search result articles
-    $("article.post").each((_, element) => {
+    $("article.movie-card").each((_, element) => {
       const article = $(element);
-      const id = article.attr("id")?.replace("post-", "") || "";
-      const link = article.find("figure a.post-thumbnail, h3.entry-title a").first();
-      const url = link.attr("href") || article.find("h3.entry-title a").attr("href") || "";
-      const image = article.find("figure img").attr("src") || "";
-      const imageAlt = article.find("figure img").attr("alt") || "";
-      const title = article.find("h3.entry-title a").text().trim() || imageAlt;
+      const link = article.find("a").first();
+      const url = link.attr("href") || "";
+      const id = url.split("/").filter(Boolean).pop() || "";
+      const img = article.find("img.poster");
+      const image = img.attr("src") || "";
+      const imageAlt = img.attr("alt") || "";
+      const title = article.find(".movie-title").text().trim() || imageAlt;
 
-      if (id && url && title) {
+      if (url && title) {
         results.push({
           id,
           title,

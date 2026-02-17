@@ -73,26 +73,34 @@ export async function GET(request: NextRequest) {
     const $ = cheerio.load(html);
 
     // Extract title
-    const title = $("h1").first().text().trim();
+    const title = $(".hero-title").first().text().trim() || $("h1").first().text().trim();
+
+    // Try to parse JSON-LD
+    let jsonLdData: any = null;
+    $('script[type="application/ld+json"]').each((_, elem) => {
+      try {
+        const data = JSON.parse($(elem).html() || "{}");
+        if (data["@type"] === "Movie") {
+          jsonLdData = data;
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    });
 
     // Extract release date
-    const releaseDate = $(".filter-button .calendar-icon")
-      .parent()
-      .find("span")
-      .text()
-      .trim();
+    const releaseDate = jsonLdData?.datePublished || $(".hero-meta-row .meta-pill").eq(1).text().trim();
 
     // Extract categories/tags
     const categories: string[] = [];
-    $(".filter-button span").each((_, elem) => {
-      const text = $(elem).text().trim();
-      if (text && !text.match(/\d{1,2}\s+\w+\s+\d{4}/)) {
-        categories.push(text);
+    $(".breadcrumb a").each((i, elem) => {
+      if (i > 0) { // Skip "Home"
+        categories.push($(elem).text().trim());
       }
     });
 
     // Extract poster image
-    const posterImage = $(".post-thumbnail img").attr("src") || "";
+    const posterImage = $(".hero-poster").attr("src") || $(".post-thumbnail img").attr("src") || jsonLdData?.image || "";
 
     // Extract screenshots from slider
     const screenshots: string[] = [];
@@ -107,65 +115,51 @@ export async function GET(request: NextRequest) {
     }
 
     // Extract storyline
-    const storyline = $(".mip-movie-info p").first().text().trim();
+    const storyline = $(".hero-description").text().trim() || jsonLdData?.description || "";
 
     // Extract movie info
     const movieInfo: MovieInfo = {};
-    const movieInfoText = $(".mip-movie-info p")
-      .eq(1)
-      .html()
-      ?.replace(/<br\s*\/?>/gi, "\n") || "";
     
-    const infoLines = movieInfoText.split("\n");
-    infoLines.forEach((line) => {
-      const text = cheerio.load(line).root().text();
-      if (text.includes("IMDb Rating:")) {
-        movieInfo.imdbRating = text.split("IMDb Rating:")[1]?.trim();
-      } else if (text.includes("Movie Name:")) {
-        movieInfo.movieName = text.split("Movie Name:")[1]?.trim();
-      } else if (text.includes("Directed By:")) {
-        movieInfo.director = text.split("Directed By:")[1]?.trim();
-      } else if (text.includes("Starring:")) {
-        movieInfo.starring = text.split("Starring:")[1]?.trim();
-      } else if (text.includes("Movie Genres:")) {
-        movieInfo.genres = text.split("Movie Genres:")[1]?.trim();
-      } else if (text.includes("Running Time:")) {
-        movieInfo.runningTime = text.split("Running Time:")[1]?.trim();
-      } else if (text.includes("Writer:")) {
-        movieInfo.writer = text.split("Writer:")[1]?.trim();
-      } else if (text.includes("Release Date:")) {
-        movieInfo.releaseDate = text.split("Release Date:")[1]?.trim();
-      } else if (text.includes("OTT:")) {
-        movieInfo.ott = text.split("OTT:")[1]?.trim();
-      } else if (text.includes("Quality:")) {
-        movieInfo.quality = text.split("Quality:")[1]?.trim();
-      } else if (text.includes("Language:")) {
-        movieInfo.language = text.split("Language:")[1]?.trim();
-      } else if (text.includes("Subtitles:")) {
-        movieInfo.subtitles = text.split("Subtitles:")[1]?.trim();
-      } else if (text.includes("Format:")) {
-        movieInfo.format = text.split("Format:")[1]?.trim();
-      }
-    });
+    if (jsonLdData) {
+      movieInfo.movieName = jsonLdData.name;
+      movieInfo.imdbRating = jsonLdData.aggregateRating?.ratingValue;
+      movieInfo.director = jsonLdData.director?.name;
+      movieInfo.starring = jsonLdData.actor?.map((a: any) => a.name).join(", ");
+      movieInfo.genres = jsonLdData.genre?.join(", ");
+      movieInfo.runningTime = jsonLdData.duration;
+      movieInfo.releaseDate = jsonLdData.datePublished;
+    }
+
+    // Fallback or additional info from meta pills
+    const ratingText = $(".rating-star").text().trim();
+    if (ratingText && !movieInfo.imdbRating) {
+      movieInfo.imdbRating = ratingText.replace("★", "").trim();
+    }
+
+    const durationText = $(".hero-meta-row .meta-pill").last().text().trim();
+    if (durationText && durationText.includes("h") && !movieInfo.runningTime) {
+      movieInfo.runningTime = durationText;
+    }
 
     // Extract download links
     const downloadLinks: DownloadLink[] = [];
-    $(".modern-option-card").each((_, elem) => {
-      const card = $(elem);
-      const badges = card.find(".modern-badge");
-      const quality = badges.first().text().trim();
-      const badge = badges.length > 1 ? badges.eq(1).text().trim() : undefined;
-      const fileSize = card.find(".modern-file-size span").first().text().trim();
-      const downloadUrl = card.find(".modern-download-button").attr("href") || "";
+    $(".download-category").each((_, catElem) => {
+      const category = $(catElem).find(".category-title").text().trim();
+      $(catElem).find(".dl-btn").each((_, elem) => {
+        const btn = $(elem);
+        const quality = btn.find(".dl-quality").text().trim() || btn.find(".dl-res").text().trim();
+        const fileSize = btn.find(".dl-size").text().trim();
+        const downloadUrl = btn.attr("href") || "";
 
-      if (quality && downloadUrl) {
-        downloadLinks.push({
-          quality,
-          badge,
-          fileSize: fileSize || undefined,
-          url: downloadUrl,
-        });
-      }
+        if (quality && downloadUrl) {
+          downloadLinks.push({
+            quality,
+            badge: category || undefined,
+            fileSize: fileSize || undefined,
+            url: downloadUrl,
+          });
+        }
+      });
     });
 
     const responseData: KMMoviesDetailsResponse = {
