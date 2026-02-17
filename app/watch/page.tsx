@@ -47,14 +47,29 @@ async function PlayerWrapper({ url }: { url: string }) {
     details = await getPostDetails(url);
 
     // Find the best quality link or just the first one
-    const preferredQualities = ["1080p", "720p", "480p"];
+    // Prioritizing user-requested qualities: 720p 10Bit HEVC and 480p⚡
+    const userPreferredQualities = ["720p 10bit hevc", "480p⚡"];
+    const standardQualities = ["1080p", "720p", "480p"];
+
     selectedLink = details.links[0];
 
-    for (const quality of preferredQualities) {
-      const found = details.links.find(l => l.quality.toLowerCase().includes(quality));
+    let foundPreferred = false;
+    for (const quality of userPreferredQualities) {
+      const found = details.links.find(l => l.quality.toLowerCase().includes(quality.toLowerCase()));
       if (found) {
         selectedLink = found;
+        foundPreferred = true;
         break;
+      }
+    }
+
+    if (!foundPreferred) {
+      for (const quality of standardQualities) {
+        const found = details.links.find(l => l.quality.toLowerCase().includes(quality));
+        if (found) {
+          selectedLink = found;
+          break;
+        }
       }
     }
 
