@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 import { resolveLink } from "@/lib/link-resolver";
+import { getBaseUrl } from "@/lib/baseurl";
+import { makeAbsoluteUrl } from "@/lib/hdhub4u";
 
 interface DownloadLink {
   quality: string;
@@ -56,12 +58,14 @@ export async function GET(request: NextRequest) {
 
     const html = await response.text();
     const $ = cheerio.load(html);
+    const providerBaseUrl = await getBaseUrl("hdhub");
 
     const title = $('h1.entry-title').text().trim() || 
                   $('h2').first().text().trim() ||
                   $('meta[property="og:title"]').attr('content') || '';
-    const imageUrl = $('.entry-content img').first().attr('src') || 
+    const rawImageUrl = $('.entry-content img').first().attr('src') ||
                      $('meta[property="og:image"]').attr('content') || '';
+    const imageUrl = makeAbsoluteUrl(providerBaseUrl, rawImageUrl);
     const description = $('.entry-content p').first().text().trim() || '';
 
     const allLinks: { link: DownloadLink, isEpisode: boolean, episodeIndex?: number }[] = [];
@@ -96,7 +100,7 @@ export async function GET(request: NextRequest) {
             
             const link: DownloadLink = {
               quality: linkText,
-              url: linkUrl,
+              url: makeAbsoluteUrl(providerBaseUrl, linkUrl),
             };
             
             // Check if we're in an episode section
