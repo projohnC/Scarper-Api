@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Search query parameter (q or s) is required' }, { status: 400 });
       }
 
-      const results = await searchContent(query, page);
+      const { results, found } = await searchContent(query, page);
       return NextResponse.json({
         success: true,
         action,
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
           query,
           page: Number(page) || 1,
           totalResults: results.length,
+          found,
           results,
         },
       });

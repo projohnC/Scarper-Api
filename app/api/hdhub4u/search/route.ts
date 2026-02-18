@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
-
-interface SearchResult {
-  id: string;
-  title: string;
-  url: string;
-  imageUrl: string;
-}
+import { searchContent } from "@/lib/hdhub4u";
 
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "HDHub4u");
@@ -26,58 +20,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Format query: replace spaces with +
-    const formattedQuery = query.replace(/\s+/g, '+');
-    const searchUrl = `https://search.pingora.fyi/collections/post/documents/search?q=${formattedQuery}&query_by=post_title&page=${page}`;
-
-    const response = await fetch(searchUrl, {
-      headers: {
-        "Origin": "https://new2.hdhub4u.fo",
-        "Referer": "https://new2.hdhub4u.fo/",
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Priority": "u=1, i",
-        "Sec-CH-UA": '"Brave";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-        "Sec-CH-UA-Mobile": "?0",
-        "Sec-CH-UA-Platform": '"Linux"',
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "cross-site",
-        "Sec-GPC": "1",
-      },
-    });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: "Failed to search on HDHub4u" },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    const searchResults: SearchResult[] = [];
-
-    // Parse JSON response
-    if (data.hits && Array.isArray(data.hits)) {
-      data.hits.forEach((hit: unknown) => {
-        const document = (hit as { document?: Record<string, unknown> }).document || {};
-        const id = String(document.id || '');
-        const title = String(document.post_title || '');
-        const url = String(document.permalink || '');
-        const imageUrl = String(document.post_thumbnail || '');
-
-        if (title && url) {
-          searchResults.push({
-            id,
-            title,
-            url,
-            imageUrl,
-          });
-        }
-      });
-    }
-
+    const { results, found } = await searchContent(query, page);
     const pageNumber = parseInt(page) || 1;
 
     return NextResponse.json({
@@ -85,9 +28,9 @@ export async function GET(request: NextRequest) {
       data: {
         query,
         page: pageNumber,
-        results: searchResults,
-        totalResults: searchResults.length,
-        found: typeof data.found === 'number' ? data.found : 0,
+        results,
+        totalResults: results.length,
+        found,
       },
     });
 
