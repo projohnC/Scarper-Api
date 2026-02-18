@@ -68,7 +68,7 @@ console.log(data);`,
     method: "GET",
     endpoint: "/api/extractors/hubcloud",
     provider: "Extractors",
-    description: "Extract download/stream links from HubCloud URLs",
+    description: "Open HubCloud, follow Generate Direct Link flow, collect server buttons, and capture final media URLs",
     requiresAuth: true,
     parameters: [
       { name: "url", type: "string", required: true, description: "HubCloud URL to extract" },
@@ -81,15 +81,17 @@ console.log(data);`,
   }
 });
 
-interface Stream {
-  server: string;
-  link: string;
-  type: string;
+interface HubCloudServer {
+  name: string;
+  url: string;
 }
 
 interface HubCloudResponse {
   success: boolean;
-  streams: Stream[];
+  hubcloudUrl: string;
+  cryptonewzUrl: string | null;
+  servers: HubCloudServer[];
+  finalLinks: string[];
 }
 
 const data: HubCloudResponse = await response.json();
@@ -109,12 +111,24 @@ console.log(data);`,
   -H "Content-Type: application/json"`,
     responseExample: `{
   "success": true,
-  "streams": [
+  "hubcloudUrl": "https://hubcloud.foo/drive/1rlb8n1u1xabd2e",
+  "cryptonewzUrl": "https://cryptonewz.one/games/xxxxx",
+  "servers": [
     {
-      "server": "HubCloud",
-      "link": "https://hubcloud.lol/drive/...",
-      "type": "mkv"
+      "name": "fls server",
+      "url": "https://cryptonewz.one/games/xxxxx?server=fls"
+    },
+    {
+      "name": "server 10gbps",
+      "url": "https://cryptonewz.one/games/xxxxx?server=10gbps"
+    },
+    {
+      "name": "pixelverse",
+      "url": "https://cryptonewz.one/games/xxxxx?server=pixelverse"
     }
+  ],
+  "finalLinks": [
+    "https://cdn.example.com/video.mp4"
   ]
 }`
   },
