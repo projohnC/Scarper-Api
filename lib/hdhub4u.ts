@@ -31,7 +31,7 @@ const DIRECT_FILE_PATTERN = /\.(mkv|mp4|avi|mov|webm|m4v|zip|rar|7z)(?:\?|#|$)/i
 const DIRECT_HOST_PATTERN = /(pixeldrain|gofile|terabox|dropapk|mediafire|filescdn|hubcdn|fsl-lx)/i;
 const INTERMEDIATE_HOST_PATTERN = /(hubcloud|hubdrive)/i;
 
-function normalizeUrl(value: string | undefined, baseUrl: string): string | null {
+export function normalizeUrl(value: string | undefined, baseUrl: string): string | null {
   if (!value) return null;
 
   try {
@@ -313,24 +313,31 @@ export async function getLatestContent(page: string): Promise<Content[]> {
   return recentMovies;
 }
 
-export async function searchContent(query: string, page: string): Promise<Content[]> {
+export async function searchContent(query: string, page: string): Promise<{ results: Content[]; found: number }> {
   try {
     const res = await fetch(`https://scarperapi-8lk0.onrender.com/api/hdhub4u?action=search&q=${encodeURIComponent(query)}&page=${page}`, {
       headers: { 'x-api-key': process.env.HDHUB_API_KEY || '' },
       cache: 'no-store'
     });
     const json = await res.json();
-    if (json.success && json.data.results) return json.data.results;
+    if (json.success && json.data.results) {
+      return {
+        results: json.data.results,
+        found: json.data.found || json.data.results.length
+      };
+    }
   } catch (err) {
     console.error('API search failed:', err);
   }
   const formattedQuery = query.replace(/\s+/g, '+');
   const searchUrl = `https://search.pingora.fyi/collections/post/documents/search?q=${formattedQuery}&query_by=post_title&page=${page}`;
 
+  const baseUrl = await getBaseUrl('hdhub');
+
   const response = await fetch(searchUrl, {
     headers: {
-      Origin: 'https://new2.hdhub4u.fo',
-      Referer: 'https://new2.hdhub4u.fo/',
+      Origin: baseUrl.replace(/\/$/, ''),
+      Referer: baseUrl,
       'User-Agent': REQUEST_HEADERS['User-Agent'],
       Accept: 'application/json',
     },
@@ -342,12 +349,11 @@ export async function searchContent(query: string, page: string): Promise<Conten
   }
 
   const data = (await response.json()) as {
+    found?: number;
     hits?: Array<{ document?: { id?: string; post_title?: string; permalink?: string; post_thumbnail?: string } }>;
   };
 
-  const baseUrl = await getBaseUrl('hdhub');
-
-  return (data.hits || [])
+  const results = (data.hits || [])
     .map((hit) => {
       const doc = hit.document || {};
       return {
@@ -358,6 +364,11 @@ export async function searchContent(query: string, page: string): Promise<Conten
       };
     })
     .filter((item) => Boolean(item.title && item.url));
+
+  return {
+    results,
+    found: typeof data.found === 'number' ? data.found : results.length,
+  };
 }
 
 export async function getPostDetails(postUrl: string): Promise<{
