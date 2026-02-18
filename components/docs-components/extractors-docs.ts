@@ -1,5 +1,69 @@
 export const EXTRACTORS_ENDPOINTS = [
   {
+    name: "MDrive Full Extractor",
+    method: "GET",
+    endpoint: "/api/extractors/mdrive",
+    provider: "Extractors",
+    description: "Resolve MDrive page links through HubCloud and return direct media URLs",
+    requiresAuth: true,
+    parameters: [
+      { name: "url", type: "string", required: true, description: "MDrive post URL" },
+      { name: "limit", type: "number", required: false, description: "How many HubCloud links to resolve (default: 1, max: 10)" },
+    ],
+    tsExample: `const response = await fetch(\`\${baseUrl}/api/extractors/mdrive?url=\${encodeURIComponent(mdriveUrl)}&limit=1\`, {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+interface MDriveResolvedItem {
+  label: string;
+  size: string;
+  hubCloudUrl: string;
+  cryptonewzUrl: string | null;
+  finalLinks: string[];
+}
+
+interface MDriveExtractorResponse {
+  success: boolean;
+  title: string;
+  resolved: MDriveResolvedItem[];
+}
+
+const data: MDriveExtractorResponse = await response.json();
+console.log(data);`,
+    jsExample: `fetch(\`\${baseUrl}/api/extractors/mdrive?url=\${encodeURIComponent(mdriveUrl)}&limit=1\`, {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Error:', error));`,
+    curlExample: `curl -X GET "https://screenscapeapi.dev/api/extractors/mdrive?url=https%3A%2F%2Fmdrive.lol%2Farchives%2F12345&limit=1" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json"`,
+    responseExample: `{
+  "success": true,
+  "title": "Sample MDrive Post",
+  "resolved": [
+    {
+      "label": "Ep1",
+      "size": "350MB",
+      "hubCloudUrl": "https://hubcloud.xxx/drive/code",
+      "cryptonewzUrl": "https://cryptonewz.one/games/xxxx",
+      "finalLinks": [
+        "https://cdn.example.com/video.mp4"
+      ]
+    }
+  ]
+}`
+  },
+  {
     name: "HubCloud Extractor",
     method: "GET",
     endpoint: "/api/extractors/hubcloud",
