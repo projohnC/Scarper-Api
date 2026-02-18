@@ -137,10 +137,35 @@ async function resolveHubCloudUrl(hubcloudUrl: string): Promise<{
 }> {
   const browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    chromiumSandbox: false,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-zygote",
+      "--single-process",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-breakpad",
+      "--disable-component-update",
+      "--disable-default-apps",
+      "--disable-extensions",
+      "--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaRouter",
+      "--disable-hang-monitor",
+      "--disable-ipc-flooding-protection",
+      "--disable-renderer-backgrounding",
+      "--force-color-profile=srgb",
+      "--metrics-recording-only",
+      "--mute-audio",
+    ],
   });
 
-  const context = await browser.newContext({ userAgent: BROWSER_HEADERS["User-Agent"] });
+  const context = await browser.newContext({
+    userAgent: BROWSER_HEADERS["User-Agent"],
+    viewport: { width: 1280, height: 720 },
+    javaScriptEnabled: true,
+  });
   const page = await context.newPage();
   const finalLinks = new Set<string>();
   attachMediaCapture(page, context, finalLinks);
