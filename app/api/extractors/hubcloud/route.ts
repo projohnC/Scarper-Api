@@ -11,11 +11,12 @@ process.env.PLAYWRIGHT_BROWSERS_PATH = PLAYWRIGHT_BROWSERS_PATH;
 
 const BROWSER_HEADERS = {
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 };
 
 const MEDIA_URL_PATTERN = /\.(mp4|mkv|avi|mov|m3u8|webm|mpd)(\?|$)/i;
 const SERVER_LABEL_PATTERN = /(fls|10\s*gbps|pixelverse)/i;
+const BLOCKED_REQUEST_PATTERNS = ["zerocostdownloads", "go2cloud", "rhythmicicle", "cloudflareinsights"];
 
 type HubCloudServer = {
   name: string;
@@ -181,6 +182,7 @@ async function resolveHubCloudUrl(hubcloudUrl: string): Promise<{
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
+      "--disable-blink-features=AutomationControlled",
       "--disable-gpu",
       "--disable-software-rasterizer",
       "--disable-accelerated-2d-canvas",
@@ -205,15 +207,35 @@ async function resolveHubCloudUrl(hubcloudUrl: string): Promise<{
 
   const context = await browser.newContext({
     userAgent: BROWSER_HEADERS["User-Agent"],
-    viewport: { width: 1280, height: 720 },
+    viewport: { width: 1366, height: 768 },
+    locale: "en-US",
     javaScriptEnabled: true,
   });
+
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => undefined,
+    });
+  });
+
+  await context.route("**/*", (route) => {
+    const requestUrl = route.request().url().toLowerCase();
+    const shouldBlock = BLOCKED_REQUEST_PATTERNS.some((pattern) => requestUrl.includes(pattern));
+
+    if (shouldBlock) {
+      return route.abort();
+    }
+
+    return route.continue();
+  });
+
   const page = await context.newPage();
   const finalLinks = new Set<string>();
   attachMediaCapture(page, context, finalLinks);
 
   try {
-    await page.goto(hubcloudUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.goto(hubcloudUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForTimeout(8_000);
 
     const initialUrl = page.url();
     await clickGenerateButton(page);
