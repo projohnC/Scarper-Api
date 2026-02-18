@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "PLAYWRIGHT_BROWSERS_PATH=.playwright next build",
+    "start": "PLAYWRIGHT_BROWSERS_PATH=.playwright next start",
     "lint": "eslint",
-    "postinstall": "playwright install chromium"
+    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=.playwright playwright install chromium"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

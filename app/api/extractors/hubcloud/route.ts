@@ -1,8 +1,13 @@
+import fs from "node:fs";
+import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { chromium, type BrowserContext, type Page } from "playwright";
 import { validateApiKey } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
+
+const PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || ".playwright";
+process.env.PLAYWRIGHT_BROWSERS_PATH = PLAYWRIGHT_BROWSERS_PATH;
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -27,6 +32,39 @@ function canUseAsFinalLink(url: string): boolean {
   }
 
   return /download|stream|play|video|cdn|file\//i.test(url);
+}
+
+function resolveChromiumExecutablePath(): string {
+  const browsersRoot = path.isAbsolute(PLAYWRIGHT_BROWSERS_PATH)
+    ? PLAYWRIGHT_BROWSERS_PATH
+    : path.join(process.cwd(), PLAYWRIGHT_BROWSERS_PATH);
+
+  if (!fs.existsSync(browsersRoot)) {
+    return chromium.executablePath();
+  }
+
+  const executableRelPaths = [
+    "chrome-linux/chrome",
+    "chrome-linux/headless_shell",
+    "chrome-linux64/chrome",
+    "chrome-linux64/headless_shell",
+  ];
+
+  const chromiumDirs = fs
+    .readdirSync(browsersRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("chromium-"))
+    .sort((a, b) => b.name.localeCompare(a.name));
+
+  for (const chromiumDir of chromiumDirs) {
+    for (const relPath of executableRelPaths) {
+      const candidate = path.join(browsersRoot, chromiumDir.name, relPath);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return chromium.executablePath();
 }
 
 async function clickGenerateButton(page: Page): Promise<void> {
@@ -136,6 +174,7 @@ async function resolveHubCloudUrl(hubcloudUrl: string): Promise<{
   finalLinks: string[];
 }> {
   const browser = await chromium.launch({
+    executablePath: resolveChromiumExecutablePath(),
     headless: true,
     chromiumSandbox: false,
     args: [
@@ -143,6 +182,8 @@ async function resolveHubCloudUrl(hubcloudUrl: string): Promise<{
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--disable-software-rasterizer",
+      "--disable-accelerated-2d-canvas",
       "--no-zygote",
       "--single-process",
       "--disable-background-networking",
@@ -158,6 +199,7 @@ async function resolveHubCloudUrl(hubcloudUrl: string): Promise<{
       "--force-color-profile=srgb",
       "--metrics-recording-only",
       "--mute-audio",
+      "--headless=new",
     ],
   });
 
