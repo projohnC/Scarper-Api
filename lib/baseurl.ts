@@ -4,6 +4,7 @@
 interface Provider {
   name: string;
   url: string;
+  baseUrl?: string;
 }
 
 /**
@@ -61,7 +62,7 @@ export async function getBaseUrl(key: string): Promise<string> {
     );
   }
 
-  return provider.url;
+  return provider.baseUrl || provider.url;
 }
 
 /**

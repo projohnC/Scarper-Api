@@ -25,6 +25,26 @@ interface MovieInfo {
   format?: string;
 }
 
+
+interface JsonLdPerson {
+  name?: string;
+}
+
+interface JsonLdMovie {
+  "@type"?: string;
+  datePublished?: string;
+  image?: string;
+  description?: string;
+  name?: string;
+  duration?: string;
+  genre?: string[];
+  aggregateRating?: {
+    ratingValue?: string;
+  };
+  director?: JsonLdPerson;
+  actor?: JsonLdPerson[];
+}
+
 interface KMMoviesDetailsResponse {
   success: boolean;
   data?: {
@@ -82,17 +102,18 @@ export async function GET(request: NextRequest) {
     const title = $(".hero-title").first().text().trim() || $("h1").first().text().trim();
 
     // Try to parse JSON-LD
-    let jsonLdData: Record<string, unknown> | null = null;
-    $('script[type="application/ld+json"]').each((_, elem) => {
+    let jsonLdData: JsonLdMovie | null = null;
+    for (const elem of $('script[type="application/ld+json"]').toArray()) {
       try {
-        const data = JSON.parse($(elem).html() || "{}");
+        const data = JSON.parse($(elem).html() || "{}") as JsonLdMovie;
         if (data["@type"] === "Movie") {
-          jsonLdData = data as Record<string, unknown>;
+          jsonLdData = data;
+          break;
         }
       } catch {
         // Ignore parse errors
       }
-    });
+    }
 
     // Extract release date
     const releaseDate = jsonLdData?.datePublished || $(".hero-meta-row .meta-pill").eq(1).text().trim();
@@ -125,15 +146,15 @@ export async function GET(request: NextRequest) {
 
     // Extract movie info
     const movieInfo: MovieInfo = {};
-    
+
     if (jsonLdData) {
-      movieInfo.movieName = jsonLdData.name as string;
-      movieInfo.imdbRating = (jsonLdData.aggregateRating as Record<string, unknown>)?.ratingValue as string;
-      movieInfo.director = (jsonLdData.director as Record<string, unknown>)?.name as string;
-      movieInfo.starring = (jsonLdData.actor as Record<string, unknown>[])?.map((a) => a.name as string).join(", ");
-      movieInfo.genres = (jsonLdData.genre as string[])?.join(", ");
-      movieInfo.runningTime = jsonLdData.duration as string;
-      movieInfo.releaseDate = jsonLdData.datePublished as string;
+      movieInfo.movieName = jsonLdData.name;
+      movieInfo.imdbRating = jsonLdData.aggregateRating?.ratingValue;
+      movieInfo.director = jsonLdData.director?.name;
+      movieInfo.starring = jsonLdData.actor?.map((a) => a.name).filter(Boolean).join(", ");
+      movieInfo.genres = jsonLdData.genre?.join(", ");
+      movieInfo.runningTime = jsonLdData.duration;
+      movieInfo.releaseDate = jsonLdData.datePublished;
     }
 
     // Fallback or additional info from meta pills
