@@ -46,6 +46,7 @@
 - 🎨 **Beautiful UI** - Shadcn/ui components with Tailwind CSS
 - 💾 **PostgreSQL Database** - Powered by Neon serverless PostgreSQL with Drizzle ORM
 - 📧 **Email Notifications** - Automated login alerts and quota warnings with beautiful HTML emails
+- 🤖 **Built-in Browser Extractors** - Native Playwright flows for HubCloud/MDrive style link resolution
 
 ## 🎯 Supported Providers
 
@@ -172,6 +173,29 @@ console.log(data);
 - `GET /api/hdhub4u/search?q={query}` - Search HDHub4u posts
 - `GET /api/hdhub4u/details?url={url}` - Extract post metadata and available links
 - `GET /api/hdhub4u/extractor?url={url}` - Resolve a provider page URL into a direct/usable stream or download link
+
+#### Extractors
+- `GET /api/extractors/mdrive?url={mdriveUrl}&limit=1` - Parse an MDrive page, discover HubCloud links, and resolve direct media links
+- `GET /api/extractors/hubcloud?url={hubcloudUrl}` - Open HubCloud URL, click **Generate Direct Link**, detect cryptonewz redirect, collect server buttons, and return captured final media links
+- `GET /api/extractors/gdflix?url={gdflixUrl}` - Extract streams/download links from GDFlix URL
+
+Example HubCloud extraction response:
+
+```json
+{
+  "success": true,
+  "hubcloudUrl": "https://hubcloud.foo/drive/1rlb8n1u1xabd2e",
+  "cryptonewzUrl": "https://cryptonewz.one/games/xxxxx",
+  "servers": [
+    { "name": "fls server", "url": "https://cryptonewz.one/games/xxxxx?server=fls" },
+    { "name": "server 10gbps", "url": "https://cryptonewz.one/games/xxxxx?server=10gbps" },
+    { "name": "pixelverse", "url": "https://cryptonewz.one/games/xxxxx?server=pixelverse" }
+  ],
+  "finalLinks": [
+    "https://cdn.example.com/video.mp4"
+  ]
+}
+```
 
 Example TypeScript client usage (`lib/hdhub4u-api.ts`):
 
