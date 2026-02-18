@@ -1,4 +1,4 @@
-import { getBaseUrl } from "./baseurl";
+import { getProvider } from "./baseurl";
 
 export interface Content {
   id: string;
@@ -26,6 +26,12 @@ export function makeAbsoluteUrl(base: string, path: string): string {
   }
 }
 
+
+async function getHdhubBaseUrl(): Promise<string> {
+  const provider = await getProvider("hdhub");
+  return provider.baseUrl || provider.url;
+}
+
 export async function searchContent(
   query: string,
   page: string
@@ -44,7 +50,7 @@ export async function searchContent(
     const json = await res.json();
 
     if (json.success && json.data.results) {
-      const providerBaseUrl = await getBaseUrl("hdhub");
+      const providerBaseUrl = await getHdhubBaseUrl();
       return {
         results: (json.data.results as Record<string, unknown>[]).map(
           (item) => ({
@@ -68,11 +74,7 @@ export async function searchContent(
 
   const searchUrl = `https://search.pingora.fyi/collections/post/documents/search?q=${formattedQuery}&query_by=post_title&page=${page}`;
 
-  // 🔥 Hard fallback base URL
-  const baseUrl =
-    (await getBaseUrl("hdhub")) ||
-    process.env.HDHUB4U_BASE ||
-    "https://new2.hdhub4u.fo";
+  const baseUrl = await getHdhubBaseUrl();
 
   const response = await fetch(searchUrl, {
     headers: {
@@ -140,7 +142,7 @@ export async function getLatestContent(page: string): Promise<Content[]> {
     const json = await res.json();
 
     if (json.success && json.data.recentMovies) {
-      const providerBaseUrl = await getBaseUrl("hdhub");
+      const providerBaseUrl = await getHdhubBaseUrl();
       return (json.data.recentMovies as Record<string, unknown>[]).map(
         (item) => ({
           id: String(item.id || ""),
@@ -175,7 +177,7 @@ export async function getPostDetails(
 
     const json = await res.json();
     if (json.success && json.data) {
-      const providerBaseUrl = await getBaseUrl("hdhub");
+      const providerBaseUrl = await getHdhubBaseUrl();
       if (json.data.imageUrl) {
         json.data.imageUrl = makeAbsoluteUrl(providerBaseUrl, json.data.imageUrl);
       }
