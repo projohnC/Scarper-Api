@@ -10,6 +10,14 @@ interface MovieCard {
   quality: string;
 }
 
+function makeAbsoluteUrl(base: string, path: string): string {
+  try {
+    return new URL(path, base).href;
+  } catch {
+    return path;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -53,8 +61,8 @@ export async function GET(request: NextRequest) {
 
       const movie: MovieCard = {
         title: $title.text().trim(),
-        url: $link.attr("href") || "",
-        imageUrl: $img.attr("src") || "",
+        url: makeAbsoluteUrl(baseUrl, $link.attr("href") || ""),
+        imageUrl: makeAbsoluteUrl(baseUrl, $img.attr("src") || ""),
         quality: $quality.text().trim(),
       };
 

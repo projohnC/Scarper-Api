@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import axios from "axios";
+import { getBaseUrl } from "@/lib/baseurl";
 
 interface DownloadLink {
   title: string;
@@ -26,6 +27,15 @@ interface MovieDetails {
   };
 }
 
+
+function makeAbsoluteUrl(base: string, path: string): string {
+  try {
+    return new URL(path, base).href;
+  } catch {
+    return path;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -38,7 +48,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const response = await axios.get(url, {
+    const baseUrl = await getBaseUrl("drive");
+    const detailsUrl = makeAbsoluteUrl(baseUrl, url);
+
+    const response = await axios.get(detailsUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -67,7 +80,7 @@ export async function GET(request: NextRequest) {
     const screenshots: string[] = [];
     $(".page-body img[src*='catimages']").each((_, el) => {
       const src = $(el).attr("src");
-      if (src) screenshots.push(src);
+      if (src) screenshots.push(makeAbsoluteUrl(baseUrl, src));
     });
 
     const downloadLinks: MovieDetails["downloadLinks"] = {
@@ -91,13 +104,13 @@ export async function GET(request: NextRequest) {
         
         if (link) {
           if (text.includes("480p")) {
-            downloadLinks["480p"].push({ title: text.trim(), url: link });
+            downloadLinks["480p"].push({ title: text.trim(), url: makeAbsoluteUrl(baseUrl, link) });
           } else if (text.includes("720p")) {
-            downloadLinks["720p"].push({ title: text.trim(), url: link });
+            downloadLinks["720p"].push({ title: text.trim(), url: makeAbsoluteUrl(baseUrl, link) });
           } else if (text.includes("1080p")) {
-            downloadLinks["1080p"].push({ title: text.trim(), url: link });
+            downloadLinks["1080p"].push({ title: text.trim(), url: makeAbsoluteUrl(baseUrl, link) });
           } else if (text.includes("4K") || text.includes("2160p")) {
-            downloadLinks["4K"].push({ title: text.trim(), url: link });
+            downloadLinks["4K"].push({ title: text.trim(), url: makeAbsoluteUrl(baseUrl, link) });
           }
         }
       }
@@ -119,7 +132,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      url,
+      url: detailsUrl,
       data: details,
     });
   } catch (error) {

@@ -11,6 +11,14 @@ interface SearchResult {
   imdbId: string;
 }
 
+function makeAbsoluteUrl(base: string, path: string): string {
+  try {
+    return new URL(path, base).href;
+  } catch {
+    return path;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "Drive");
   if (!validation.valid) {
@@ -55,8 +63,8 @@ export async function GET(request: NextRequest) {
         const document = (hit as { document?: Record<string, unknown> }).document || {};
         const id = String(document.id || '');
         const title = String(document.post_title || '');
-        const url = String(document.permalink || '');
-        const imageUrl = String(document.post_thumbnail || '');
+        const url = makeAbsoluteUrl(baseUrl, String(document.permalink || ''));
+        const imageUrl = makeAbsoluteUrl(baseUrl, String(document.post_thumbnail || ''));
         const category = Array.isArray(document.category) ? document.category.map(String) : [];
         const imdbId = String(document.imdb_id || '');
 
