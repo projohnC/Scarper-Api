@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Allowed frontend origins - default to "*" if not specified
-const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || "*")
+// Allowed frontend origins - default to the Netlify app used by the frontend
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || "https://netfliyhub.netlify.app")
   .split(",")
   .map(o => o.trim().toLowerCase());
 
 const ALLOWED_METHODS = process.env.CORS_ALLOWED_METHODS || "GET,POST,PUT,DELETE,PATCH,OPTIONS";
-const ALLOWED_HEADERS = process.env.CORS_ALLOWED_HEADERS || "Content-Type,x-api-key,Authorization,Accept,Origin,X-Requested-With";
+const ALLOWED_HEADERS = process.env.CORS_ALLOWED_HEADERS || "Content-Type,Authorization,Accept,Origin,X-Requested-With,x-api-key";
 
 function isOriginAllowed(origin: string | null) {
   if (ALLOWED_ORIGINS.includes("*")) return true;
@@ -19,8 +19,7 @@ function applyCors(response: NextResponse, origin: string | null) {
 
   if (isAllowed) {
     if (origin) {
-      // If we allow all origins (*), we must reflect the request origin
-      // when Access-Control-Allow-Credentials is true.
+      // Reflect only an allowed origin to support credentialed requests.
       response.headers.set("Access-Control-Allow-Origin", origin);
       response.headers.set("Access-Control-Allow-Credentials", "true");
     } else {
