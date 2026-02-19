@@ -1037,8 +1037,18 @@ interface Movie {
   imageUrl: string;
 }
 
-const movies: Movie[] = await response.json();
-console.log(movies);`,
+interface LatestResponse {
+  success: boolean;
+  action: string;
+  data: {
+    page: number;
+    totalItems: number;
+    recentMovies: Movie[];
+  };
+}
+
+const result: LatestResponse = await response.json();
+console.log(result.data.recentMovies);`,
     jsExample: `fetch(\`\${baseUrl}/api/hdhub4u?page=1\`, {
   method: 'GET',
   headers: {
@@ -1047,19 +1057,27 @@ console.log(movies);`,
   }
 })
   .then(response => response.json())
-  .then(movies => console.log(movies))
+  .then(result => console.log(result.data.recentMovies))
   .catch(error => console.error('Error:', error));`,
     curlExample: `curl -X GET "https://screenscapeapi.dev/api/hdhub4u?page=1" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
-    responseExample: `[
-  {
-    "id": "avengers-2019",
-    "title": "Avengers: Endgame",
-    "url": "/movie/avengers-endgame-2019",
-    "imageUrl": "https://..."
+    responseExample: `{
+  "success": true,
+  "action": "latest",
+  "data": {
+    "page": 1,
+    "totalItems": 1,
+    "recentMovies": [
+      {
+        "id": "avengers-2019",
+        "title": "Avengers: Endgame",
+        "url": "/movie/avengers-endgame-2019",
+        "imageUrl": "https://..."
+      }
+    ]
   }
-]`
+}`
   },
   {
     name: "HDHub4U Search",
