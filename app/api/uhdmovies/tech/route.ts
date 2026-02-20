@@ -47,10 +47,6 @@ class CookieJar {
       .map(([name, value]) => `${name}=${value}`)
       .join('; ');
   }
-
-  get(name: string) {
-    return this.cookies.get(name);
-  }
 }
 
 function resolveChromiumExecutablePath(): string {
@@ -86,22 +82,34 @@ function resolveChromiumExecutablePath(): string {
   return chromium.executablePath();
 }
 
-async function staticExtractor(url: string, referer: string): Promise<{ servers: Stream[], html: string, redirectChain: string[], cookies: Record<string, string> }> {
-  const jar = new CookieJar();
-  const servers: Stream[] = [];
+const isDriveLink = async (ddl: string) => {
+  if (ddl.includes('drive')) {
+    try {
+      const driveLeach = await axios.get(ddl, { headers: BROWSER_HEADERS });
+      const match = driveLeach.data.match(/window\.location\.replace\("([^"]+)"\)/);
+      if (match) {
+        const path = match[1];
+        const mainUrl = ddl.split('/')[2];
+        console.log(`driveUrl = https://${mainUrl}${path}`);
+        return `https://${mainUrl}${path}`;
+      }
+    } catch (e) {
+      console.error("isDriveLink error", e);
+    }
+  }
+  return ddl;
+};
+
+export async function modExtractor(url: string, jar: CookieJar) {
+  let currentUrl = url;
+  let referer = "https://tech.unblockedgames.world/";
+  let html = "";
   const redirectChain: string[] = [];
 
-  let currentUrl = url;
-  let html = "";
-  let response: AxiosResponse;
-
   try {
-    // Phase 1: Follow redirects and handle forms
-    for (let i = 0; i < 5; i++) { // Limit redirects
+    for (let i = 0; i < 5; i++) {
       redirectChain.push(currentUrl);
-      console.log(`[Static] Fetching: ${currentUrl}`);
-
-      response = await axios.get(currentUrl, {
+      const response: AxiosResponse = await axios.get(currentUrl, {
         headers: {
           ...BROWSER_HEADERS,
           Referer: referer,
@@ -117,21 +125,19 @@ async function staticExtractor(url: string, referer: string): Promise<{ servers:
       if (response.status >= 300 && response.status < 400 && response.headers.location) {
         let nextUrl = response.headers.location;
         if (!nextUrl.startsWith('http')) {
-          const urlObj = new URL(currentUrl);
-          nextUrl = `${urlObj.protocol}//${urlObj.host}${nextUrl.startsWith('/') ? '' : '/'}${nextUrl}`;
+          nextUrl = new URL(nextUrl, currentUrl).href;
         }
         referer = currentUrl;
         currentUrl = nextUrl;
         continue;
       }
 
-      // Check for hidden forms and auto-submit
+      // Handle hidden forms (wp_http pattern)
       const $ = cheerio.load(html);
       const form = $('form');
-      if (form.length > 0 && html.includes('_wp_http')) {
-        console.log("[Static] Found form, attempting auto-submit...");
+      if (form.length > 0 && (html.includes('_wp_http') || html.includes('_wp_http2'))) {
         const action = form.attr('action') || currentUrl;
-        const method = form.attr('method')?.toUpperCase() || 'POST';
+        const targetUrl = action.startsWith('http') ? action : new URL(action, currentUrl).href;
         const formData = new URLSearchParams();
 
         form.find('input[type="hidden"], input[type="text"]').each((_, el) => {
@@ -140,12 +146,7 @@ async function staticExtractor(url: string, referer: string): Promise<{ servers:
           if (name) formData.append(name, value);
         });
 
-        const targetUrl = action.startsWith('http') ? action : new URL(action, currentUrl).href;
-        
-        response = await axios({
-          method,
-          url: targetUrl,
-          data: formData.toString(),
+        const postRes = await axios.post(targetUrl, formData.toString(), {
           headers: {
             ...BROWSER_HEADERS,
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -156,103 +157,45 @@ async function staticExtractor(url: string, referer: string): Promise<{ servers:
           validateStatus: (status) => status >= 200 && status < 400,
         });
 
-        jar.setCookies(response.headers['set-cookie']);
-        html = response.data;
+        jar.setCookies(postRes.headers['set-cookie']);
+        html = postRes.data;
         referer = currentUrl;
 
-        if (response.status >= 300 && response.status < 400 && response.headers.location) {
-           currentUrl = response.headers.location.startsWith('http') ? response.headers.location : new URL(response.headers.location, targetUrl).href;
-           continue;
+        if (postRes.status >= 300 && postRes.status < 400 && postRes.headers.location) {
+          currentUrl = postRes.headers.location.startsWith('http') ? postRes.headers.location : new URL(postRes.headers.location, targetUrl).href;
+          continue;
         }
       }
-
-      break; // No more redirects or forms to handle automatically
+      break;
     }
 
-    // Extract links from final HTML
-    const $ = cheerio.load(html);
-    
-    // 1. <a> tags
-    $('a[href]').each((_, el) => {
-      let href = $(el).attr('href') || '';
-      if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('javascript:')) {
-        try { href = new URL(href, currentUrl).href; } catch (e) {}
-      }
+    console.log("[Debug] Redirect Chain:", redirectChain);
+    console.log("[Debug] Cookies received:", jar.cookies.size);
+    console.log("[Debug] HTML Length:", html.length);
 
-      const text = $(el).text().toLowerCase();
-      const isDownload = /download|dl|get|server|direct|mirror/.test(text);
-      const isMedia = MEDIA_URL_PATTERN.test(href);
-
-      if (href && (isDownload || isMedia) && !href.startsWith('#') && !href.includes('javascript:')) {
-        const type = href.match(MEDIA_URL_PATTERN)?.[1] || 'link';
-        servers.push({
-          server: $(el).text().trim() || 'Link',
-          link: href,
-          type
+    // If there's a meta refresh or a JS redirect we should try to catch it
+    const metaRefresh = html.match(/content="0;url=(.*?)"/i);
+    if (metaRefresh) {
+        const nextUrl = metaRefresh[1].startsWith('http') ? metaRefresh[1] : new URL(metaRefresh[1], currentUrl).href;
+        const finalRes = await axios.get(nextUrl, {
+            headers: {
+                ...BROWSER_HEADERS,
+                Referer: currentUrl,
+                Cookie: jar.getCookieString()
+            }
         });
-      }
-    });
-
-    // 2. Buttons with onclick
-    $('[onclick]').each((_, el) => {
-      const onclick = $(el).attr('onclick') || '';
-      const match = onclick.match(/window\.open\(['"](.*?)['"]\)|location\.href=['"](.*?)['"]/);
-      let href = match?.[1] || match?.[2];
-      if (href && !href.startsWith('#')) {
-        if (!href.startsWith('http')) {
-          try { href = new URL(href, currentUrl).href; } catch (e) {}
-        }
-        servers.push({
-          server: $(el).text().trim() || 'Button',
-          link: href,
-          type: href.match(MEDIA_URL_PATTERN)?.[1] || 'link'
-        });
-      }
-    });
-
-    // 3. data-href
-    $('[data-href]').each((_, el) => {
-      let href = $(el).attr('data-href') || '';
-      if (href) {
-        if (!href.startsWith('http') && !href.startsWith('#')) {
-          try { href = new URL(href, currentUrl).href; } catch (e) {}
-        }
-        servers.push({
-          server: $(el).text().trim() || 'Data Link',
-          link: href,
-          type: href.match(MEDIA_URL_PATTERN)?.[1] || 'link'
-        });
-      }
-    });
-
-    // 4. Regex for links in scripts
-    const scriptLinks = html.match(/https?:\/\/[^\s'"]+\.(mp4|mkv|m3u8|avi)[^\s'"]*/g);
-    if (scriptLinks) {
-      scriptLinks.forEach((link, i) => {
-        servers.push({
-          server: `Script Link ${i + 1}`,
-          link,
-          type: link.match(MEDIA_URL_PATTERN)?.[1] || 'link'
-        });
-      });
+        jar.setCookies(finalRes.headers['set-cookie']);
+        return { data: finalRes.data, url: nextUrl };
     }
 
-    // Deduplicate
-    const uniqueServers = Array.from(new Map(servers.map(s => [s.link, s])).values());
-
-    return {
-      servers: uniqueServers,
-      html,
-      redirectChain,
-      cookies: Object.fromEntries(jar.cookies)
-    };
-  } catch (error) {
-    console.error("[Static] Error:", error);
-    return { servers: [], html, redirectChain, cookies: Object.fromEntries(jar.cookies) };
+    return { data: html, url: currentUrl };
+  } catch (err) {
+    console.log('modExtractor error', err);
+    throw err;
   }
 }
 
-async function headlessExtractor(url: string): Promise<Stream[]> {
+async function headlessFallback(url: string): Promise<Stream[]> {
   console.log("[Headless] Starting Playwright...");
   const browser = await chromium.launch({
     executablePath: resolveChromiumExecutablePath(),
@@ -267,38 +210,23 @@ async function headlessExtractor(url: string): Promise<Stream[]> {
   const page = await context.newPage();
   const capturedLinks = new Set<string>();
 
-  // Block ads and analytics
   await page.route("**/*", (route) => {
     const requestUrl = route.request().url().toLowerCase();
     const shouldBlock = BLOCKED_REQUEST_PATTERNS.some((pattern) => requestUrl.includes(pattern));
-    if (shouldBlock) {
-      return route.abort();
-    }
+    if (shouldBlock) return route.abort();
     return route.continue();
   });
 
-  // Capture network requests
   page.on("request", (request) => {
     const reqUrl = request.url();
-    if (MEDIA_URL_PATTERN.test(reqUrl)) {
-      capturedLinks.add(reqUrl);
-    }
+    if (MEDIA_URL_PATTERN.test(reqUrl)) capturedLinks.add(reqUrl);
   });
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(5000); // Wait for some JS to run
+    await page.waitForTimeout(5000);
     
-    // Wait for common buttons
-    const selectors = [
-      "button:has-text('Download')",
-      "a:has-text('Download')",
-      "button:has-text('Direct Link')",
-      "a:has-text('Direct Link')",
-      "#download",
-      ".download",
-    ];
-
+    const selectors = ["button:has-text('Download')", "a:has-text('Download')", "#download", ".download"];
     for (const selector of selectors) {
       if (await page.locator(selector).first().isVisible()) {
         await page.locator(selector).first().click().catch(() => {});
@@ -308,25 +236,16 @@ async function headlessExtractor(url: string): Promise<Stream[]> {
 
     const servers: Stream[] = [];
     capturedLinks.forEach(link => {
-      servers.push({
-        server: "Headless Capture",
-        link,
-        type: link.match(MEDIA_URL_PATTERN)?.[1] || "link"
-      });
+      servers.push({ server: "Headless Capture", link, type: link.match(MEDIA_URL_PATTERN)?.[1] || "link" });
     });
 
-    // Also extract from page content
     const pageLinks = await page.$$eval("a[href]", (anchors) =>
       anchors.map(a => ({ text: a.textContent?.trim(), href: (a as HTMLAnchorElement).href }))
     );
 
     pageLinks.forEach(l => {
       if (MEDIA_URL_PATTERN.test(l.href)) {
-        servers.push({
-          server: l.text || "Direct Link",
-          link: l.href,
-          type: l.href.match(MEDIA_URL_PATTERN)?.[1] || "link"
-        });
+        servers.push({ server: l.text || "Direct Link", link: l.href, type: l.href.match(MEDIA_URL_PATTERN)?.[1] || "link" });
       }
     });
 
@@ -339,84 +258,159 @@ async function headlessExtractor(url: string): Promise<Stream[]> {
   }
 }
 
+export const modGetStream = async (url: string): Promise<Stream[]> => {
+  try {
+    console.log('modGetStream', url);
+    const jar = new CookieJar();
+    const extraction = await modExtractor(url, jar);
+    const html = extraction.data;
+    const currentUrl = extraction.url;
+
+    const $ = cheerio.load(html);
+    const servers: Stream[] = [];
+
+    if (html.includes("cloudflare") || html.includes("Ray ID")) {
+        throw new Error("Blocked by Cloudflare");
+    }
+
+    // Traditional specific logic
+    const ddl = html.match(/content="0;url=(.*?)"/)?.[1] || currentUrl;
+    const driveLink = await isDriveLink(ddl);
+
+    try {
+        const driveRes = await axios.get(driveLink, { headers: { ...BROWSER_HEADERS, Cookie: jar.getCookieString() } });
+        const $drive = cheerio.load(driveRes.data);
+
+        // ResumeBot
+        const resumeBot = $drive('.btn.btn-light').attr('href') || '';
+        if (resumeBot) {
+            try {
+                const rbRes = await axios.get(resumeBot, { headers: BROWSER_HEADERS });
+                const token = rbRes.data.match(/formData\.append\('token', '([a-f0-9]+)'\)/)?.[1];
+                const id = rbRes.data.match(/fetch\('\/download\?id=([a-zA-Z0-9\/+]+)'/)?.[1];
+                if (token && id) {
+                    const rbBody = new FormData();
+                    rbBody.append('token', token);
+                    const rbDownload = await fetch(resumeBot.split('/download')[0] + '/download?id=' + id, {
+                        method: 'POST',
+                        body: rbBody,
+                        headers: { Referer: resumeBot }
+                    });
+                    const rbData = await rbDownload.json();
+                    if (rbData.url) servers.push({ server: 'ResumeBot', link: rbData.url, type: rbData.url.match(MEDIA_URL_PATTERN)?.[1] || 'mkv' });
+                }
+            } catch (e) {}
+        }
+
+        // Cloud Download
+        const cloudDownload = $drive('.btn.btn-success').attr('href') || '';
+        if (cloudDownload) servers.push({ server: 'Cloud Download', link: cloudDownload, type: cloudDownload.match(MEDIA_URL_PATTERN)?.[1] || 'mkv' });
+
+        // CF Workers
+        for (const type of [1, 2]) {
+            try {
+                const cfLink = driveLink.replace('/file', '/wfile') + `?type=${type}`;
+                const cfRes = await axios.get(cfLink, { headers: BROWSER_HEADERS });
+                const $cf = cheerio.load(cfRes.data);
+                $cf('.btn-success').each((i, el) => {
+                    const href = $cf(el).attr('href');
+                    if (href) servers.push({ server: `Cf Worker ${type}.${i}`, link: href, type: href.match(MEDIA_URL_PATTERN)?.[1] || 'mkv' });
+                });
+            } catch (e) {}
+        }
+
+        // Instant
+        const seed = $drive('.btn-danger').attr('href') || '';
+        if (seed && seed.includes('=')) {
+            try {
+                const token = seed.split('=')[1];
+                const body = new FormData();
+                body.append('keys', token);
+                const api = seed.split('/').slice(0, 3).join('/') + '/api';
+                const res = await fetch(api, { method: 'POST', body, headers: { 'x-token': api } });
+                const data = await res.json();
+                if (data.url) servers.push({ server: 'Gdrive-Instant', link: data.url, type: data.url.match(MEDIA_URL_PATTERN)?.[1] || 'mkv' });
+            } catch (e) {}
+        }
+    } catch (e) {}
+
+    // Requirement 6 & 7: Broad Extraction
+    // <a> tags
+    $('a[href]').each((_, el) => {
+        let href = $(el).attr('href') || '';
+        const text = $(el).text().toLowerCase();
+        if (href && (MEDIA_URL_PATTERN.test(href) || /download|dl|get|server|direct/.test(text)) && !href.startsWith('#')) {
+            if (!href.startsWith('http')) try { href = new URL(href, currentUrl).href; } catch(e) {}
+            servers.push({ server: $(el).text().trim() || 'Link', link: href, type: href.match(MEDIA_URL_PATTERN)?.[1] || 'link' });
+        }
+    });
+
+    // buttons & data-href
+    $('[onclick], [data-href]').each((_, el) => {
+        let href = $(el).attr('data-href') || '';
+        if (!href) {
+            const onclick = $(el).attr('onclick') || '';
+            const match = onclick.match(/window\.open\(['"](.*?)['"]\)|location\.href=['"](.*?)['"]/);
+            href = match?.[1] || match?.[2] || '';
+        }
+        if (href && !href.startsWith('#')) {
+            if (!href.startsWith('http')) try { href = new URL(href, currentUrl).href; } catch(e) {}
+            servers.push({ server: $(el).text().trim() || 'Server', link: href, type: href.match(MEDIA_URL_PATTERN)?.[1] || 'link' });
+        }
+    });
+
+    // Script regex
+    const scriptLinks = html.match(/https?:\/\/[^\s'"]+\.(mp4|mkv|m3u8|avi)[^\s'"]*/g);
+    if (scriptLinks) {
+        scriptLinks.forEach((link, i) => {
+            servers.push({ server: `Script Link ${i + 1}`, link, type: link.match(MEDIA_URL_PATTERN)?.[1] || 'link' });
+        });
+    }
+
+    // Fallback to headless if empty
+    if (servers.length === 0 && (html.length < 5000 || html.includes("javascript"))) {
+        const headlessServers = await headlessFallback(url);
+        servers.push(...headlessServers);
+    }
+
+    // Deduplicate
+    const unique = Array.from(new Map(servers.map(s => [s.link, s])).values());
+    return unique;
+  } catch (err) {
+    console.log('modGetStream error', err);
+    if (err instanceof Error && err.message === "Blocked by Cloudflare") throw err;
+    return [];
+  }
+};
+
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "UhdMovies");
-  if (!validation.valid) {
-    return createProviderErrorResponse(validation.error || "Unauthorized");
-  }
+  if (!validation.valid) return createProviderErrorResponse(validation.error || "Unauthorized");
 
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = searchParams.get("url");
 
-    if (!url) {
-      return NextResponse.json({ error: "URL parameter is required" }, { status: 400 });
-    }
+    if (!url) return NextResponse.json({ error: "URL parameter is required" }, { status: 400 });
 
-    // Decode sid for logging/debug if needed
     try {
-      const urlObj = new URL(url);
-      const sid = urlObj.searchParams.get("sid");
-      if (!sid) {
-        return NextResponse.json({ error: "sid invalid" }, { status: 400 });
-      }
-      const decodedSid = Buffer.from(sid, 'base64').toString('utf-8');
-      if (!decodedSid) {
-        return NextResponse.json({ error: "sid invalid" }, { status: 400 });
-      }
-      console.log("[Debug] Decoded SID length:", decodedSid.length);
+        const sid = new URL(url).searchParams.get("sid");
+        if (!sid || !Buffer.from(sid, 'base64').toString('utf-8')) {
+            return NextResponse.json({ error: "sid invalid" }, { status: 400 });
+        }
     } catch (e) {
-      console.log("[Debug] Failed to decode SID or URL invalid");
-      return NextResponse.json({ error: "sid invalid" }, { status: 400 });
+        return NextResponse.json({ error: "sid invalid" }, { status: 400 });
     }
 
-    // Phase 1: Static Extraction
-    const { servers: staticServers, html, redirectChain, cookies } = await staticExtractor(url, "https://tech.unblockedgames.world/");
+    const servers = await modGetStream(url);
+    if (!servers || servers.length === 0) return NextResponse.json({ error: "no servers found" }, { status: 404 });
 
-    console.log("[Debug] Redirect Chain:", redirectChain);
-    console.log("[Debug] Cookies received count:", Object.keys(cookies).length);
-    console.log("[Debug] HTML Length:", html.length);
-
-    if (html.includes("cloudflare") || html.includes("Ray ID")) {
-       return NextResponse.json({ error: "Blocked by Cloudflare" }, { status: 403 });
-    }
-
-    let finalServers = staticServers;
-
-    // Phase 2: Fallback to Headless if needed
-    if (finalServers.length === 0 && (html.length < 5000 || html.includes("javascript") || html.includes("loading"))) {
-      console.log("[Debug] Static extraction failed or page looks JS-heavy. Falling back to headless...");
-      const headlessServers = await headlessExtractor(url);
-      finalServers = headlessServers;
-    }
-
-    if (finalServers.length === 0) {
-      return NextResponse.json({ error: "No servers found" }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        servers: finalServers,
-        totalServers: finalServers.length,
-      },
-    });
-
+    return NextResponse.json({ success: true, data: { servers, totalServers: servers.length } });
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      const html = String(error.response.data || "");
-      if (html.includes("cloudflare") || html.includes("Ray ID") || error.response.status === 403) {
-        return NextResponse.json({ error: "Blocked by Cloudflare" }, { status: 403 });
-      }
+    if (error instanceof Error && error.message === "Blocked by Cloudflare") {
+        return NextResponse.json({ error: "blocked by Cloudflare" }, { status: 403 });
     }
-
     console.error("Error in UhdMovies tech API:", error);
-    return NextResponse.json(
-      { 
-        error: "Internal server error", 
-        message: error instanceof Error ? error.message : "Unknown error" 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
   }
 }
