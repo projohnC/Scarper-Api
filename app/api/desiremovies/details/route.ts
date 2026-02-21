@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import { resolveDownloadLinks } from "@/lib/link-resolver";
 
 interface DownloadLink {
   quality: string;
@@ -86,11 +87,27 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    const resolvedDownloads = await Promise.all(
+      downloadLinks.map(async (link) => {
+        const resolvedUrls = await resolveDownloadLinks(link.url);
+
+        if (!resolvedUrls.length) {
+          return [];
+        }
+
+        return resolvedUrls.map((resolvedUrl) => ({
+          quality: "Resolved",
+          size: "Unknown",
+          url: resolvedUrl,
+        }));
+      })
+    );
+
     const movieDetails: MovieDetails = {
       title,
       imageUrl,
       screenshots,
-      downloadLinks,
+      downloadLinks: resolvedDownloads.flat(),
     };
 
     return NextResponse.json({
