@@ -51,6 +51,17 @@ function isValidPostUrl(url: string): boolean {
   return !/(\/page\/\d+\/?$|\/category\/|\/tag\/|\/author\/|\/wp-content\/|\/feed\/?$)/i.test(url);
 }
 
+function shouldExcludeLatestItem(url: string, title: string, baseUrl: string): boolean {
+  const normalizedBase = baseUrl.replace(/\/$/, "");
+  const normalizedUrl = url.replace(/\/$/, "");
+
+  if (!normalizedUrl || normalizedUrl === normalizedBase) return true;
+  if (/\.apk($|\?)/i.test(normalizedUrl)) return true;
+  if (/download our official android app/i.test(title)) return true;
+
+  return false;
+}
+
 function parseLatestContent(html: string, baseUrl: string): Content[] {
   const $ = cheerio.load(html);
   const seenUrls = new Set<string>();
@@ -81,7 +92,7 @@ function parseLatestContent(html: string, baseUrl: string): Content[] {
       $context.find("h1, h2, h3, h4").first().text().trim() ||
       $anchor.text().trim();
 
-    if (!title || !rawImage) {
+    if (!title || !rawImage || shouldExcludeLatestItem(normalizedUrl, title, baseUrl)) {
       return;
     }
 
