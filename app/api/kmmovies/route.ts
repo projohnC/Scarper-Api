@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
-import { getBaseUrl } from "@/lib/baseurl";
+import { getBaseUrl, getCookies } from "@/lib/baseurl";
+import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
 
 interface Movie {
   id: string;
@@ -24,6 +25,11 @@ interface KMMoviesResponse {
 }
 
 export async function GET(request: NextRequest) {
+  const validation = await validateProviderAccess(request, "KMMovies");
+  if (!validation.valid) {
+    return createProviderErrorResponse(validation.error || "Unauthorized");
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const page = searchParams.get("page") || "1";
@@ -33,15 +39,24 @@ export async function GET(request: NextRequest) {
     const url = page === "1" ? baseUrl : `${baseUrl}/page/${page}/`;
 
     // Fetch the page
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-      },
-    });
+    const headers: Record<string, string> = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      Referer: baseUrl,
+      Origin: new URL(baseUrl).origin,
+    };
+
+    try {
+      const cookies = await getCookies();
+      headers.Cookie = cookies;
+    } catch (cookieError) {
+      console.warn("KMMovies cookie fetch failed, continuing without cookies", cookieError);
+    }
+
+    const response = await fetch(url, { headers });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch data: ${response.statusText}`);
