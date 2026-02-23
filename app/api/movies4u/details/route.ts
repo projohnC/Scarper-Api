@@ -8,6 +8,23 @@ interface DownloadLink {
   url: string;
 }
 
+const QUALITY_REGEX = /(2160p|1080p|720p|480p|360p|240p)/i;
+const SIZE_REGEX = /(\d+(?:\.\d+)?\s?(?:GB|MB))/i;
+
+function extractQualityAndSize(rawText: string, rawHtml = "") {
+  const normalizedText = rawText.replace(/\s+/g, " ").trim();
+  const normalizedHtml = rawHtml.replace(/\s+/g, " ").trim();
+  const combined = `${normalizedText} ${normalizedHtml}`;
+
+  const qualityMatch = combined.match(QUALITY_REGEX);
+  const sizeMatch = combined.match(SIZE_REGEX);
+
+  return {
+    quality: qualityMatch ? qualityMatch[1] : "Unknown",
+    size: sizeMatch ? sizeMatch[1].replace(/\s+/g, "") : "Unknown",
+  };
+}
+
 interface WatchOnlineLink {
   url: string;
 }
@@ -133,27 +150,29 @@ export async function GET(request: NextRequest) {
     const downloadLinks: DownloadLink[] = [];
     $('.download-links-div h4').each((_, element) => {
       const $h4 = $(element);
-      const fullTitle = $h4.text().trim();
-      
-      // Parse the title to extract quality and size
-      // Example: "Passengers (2016) {Hindi-English} 480p BluRay [350MB]"
-      const qualityMatch = fullTitle.match(/(\d+p(?:\s+HEVC)?(?:\s+\w+)?(?:\s+x\d+)?)/i);
-      const sizeMatch = fullTitle.match(/\[([^\]]+)\]/);
-      
-      const quality = qualityMatch ? qualityMatch[1].trim() : '';
-      const size = sizeMatch ? sizeMatch[1].trim() : '';
-      
-      // Get the download link
-      const downloadUrl = $h4.next('.downloads-btns-div').find('a.btn').attr('href');
-      
-      if (downloadUrl) {
+      const sectionText = $h4.text().trim();
+      const sectionHtml = $h4.html() || "";
+      const { quality, size } = extractQualityAndSize(sectionText, sectionHtml);
+
+      const $downloadContainer = $h4.nextAll('.downloads-btns-div').first();
+      $downloadContainer.find('a.btn').each((__, linkElement) => {
+        const $link = $(linkElement);
+        const linkText = $link.text().trim();
+        const linkUrl = $link.attr('href');
+
+        if (!linkUrl) {
+          return;
+        }
+
+        const fallback = extractQualityAndSize(linkText, $link.html() || "");
+
         downloadLinks.push({
-          title: fullTitle,
-          quality,
-          size,
-          url: downloadUrl,
+          title: sectionText || linkText,
+          quality: quality !== "Unknown" ? quality : fallback.quality,
+          size: size !== "Unknown" ? size : fallback.size,
+          url: linkUrl,
         });
-      }
+      });
     });
 
     const movieDetails: MovieDetails = {
