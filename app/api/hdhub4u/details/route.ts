@@ -24,6 +24,37 @@ interface MovieDetails {
   episodes: Episode[];
 }
 
+async function resolveHubDriveLinkIfNeeded(link: string, request: NextRequest): Promise<string> {
+  if (!link.includes("hubdrive.space/file/")) {
+    return link;
+  }
+
+  try {
+    const extractorUrl = new URL("/api/extractors/hubdrive", request.nextUrl.origin);
+    extractorUrl.searchParams.set("url", link);
+
+    const extractorResponse = await fetch(extractorUrl.toString(), {
+      headers: {
+        "x-api-key": request.headers.get("x-api-key") || "",
+      },
+    });
+
+    if (!extractorResponse.ok) {
+      return link;
+    }
+
+    const extractorData = await extractorResponse.json();
+    if (extractorData?.success && extractorData?.directLink) {
+      return extractorData.directLink;
+    }
+
+    return link;
+  } catch (error) {
+    console.error("Failed to resolve HubDrive link through extractor:", error);
+    return link;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "HDHub4u");
   if (!validation.valid) {
@@ -123,7 +154,8 @@ export async function GET(request: NextRequest) {
 
     // Resolve all links in parallel
     await Promise.all(allLinks.map(async (item) => {
-      item.link.url = await resolveLink(item.link.url);
+      const resolvedUrl = await resolveLink(item.link.url);
+      item.link.url = await resolveHubDriveLinkIfNeeded(resolvedUrl, request);
     }));
 
     // Distribute resolved links back to downloadLinks and episodes
