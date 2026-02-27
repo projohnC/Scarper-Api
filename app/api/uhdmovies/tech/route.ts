@@ -24,6 +24,7 @@ const BROWSER_HEADERS = {
 
 const MEDIA_URL_PATTERN = /\.(mp4|mkv|avi|mov|m3u8|webm|mpd)(\?|$)/i;
 const BLOCKED_REQUEST_PATTERNS = ["zerocostdownloads", "go2cloud", "rhythmicicle", "cloudflareinsights"];
+const CONTINUE_TEXT_MATCHER = /(continue|download|verify|instant|go to download)/i;
 
 class CookieJar {
   cookies: Map<string, string> = new Map();
@@ -266,6 +267,7 @@ async function headlessExtractor(url: string): Promise<Stream[]> {
 
   const page = await context.newPage();
   const capturedLinks = new Set<string>();
+  const discoveredDownloadPages = new Set<string>();
 
   // Block ads and analytics
   await page.route("**/*", (route) => {
@@ -285,52 +287,151 @@ async function headlessExtractor(url: string): Promise<Stream[]> {
     }
   });
 
+  page.on("response", (response) => {
+    const responseUrl = response.url();
+    if (responseUrl.includes("driveseed.org") || responseUrl.includes("video-leech.pro")) {
+      discoveredDownloadPages.add(responseUrl);
+    }
+  });
+
+  const delay = async (ms: number) => page.waitForTimeout(ms);
+
+  const clickIfVisible = async (selector: string, timeout = 4000) => {
+    const locator = page.locator(selector).first();
+    try {
+      await locator.waitFor({ state: "visible", timeout });
+      await locator.click({ timeout: 5000 });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const extractServersFromCurrentPage = async () => {
+    const pageLinks = await page.$$eval("a[href]", (anchors) =>
+      anchors
+        .map((a) => ({
+          text: a.textContent?.trim() || "",
+          href: (a as HTMLAnchorElement).href,
+        }))
+        .filter((a) => a.href && /^https?:\/\//.test(a.href))
+    );
+
+    const servers: Stream[] = [];
+    for (const link of pageLinks) {
+      const isLikelyServer =
+        MEDIA_URL_PATTERN.test(link.href) ||
+        CONTINUE_TEXT_MATCHER.test(link.text) ||
+        /resumebot|worker|gdrive|cloud|video-leech|drive/i.test(link.href);
+
+      if (!isLikelyServer) continue;
+
+      servers.push({
+        server: link.text || "Direct Link",
+        link: link.href,
+        type: link.href.match(MEDIA_URL_PATTERN)?.[1] || "link",
+      });
+    }
+
+    return Array.from(new Map(servers.map((server) => [server.link, server])).values());
+  };
+
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(5000); // Wait for some JS to run
-    
-    // Wait for common buttons
-    const selectors = [
-      "button:has-text('Download')",
-      "a:has-text('Download')",
-      "button:has-text('Direct Link')",
-      "a:has-text('Direct Link')",
-      "#download",
-      ".download",
-    ];
+    await delay(3000);
 
-    for (const selector of selectors) {
-      if (await page.locator(selector).first().isVisible()) {
-        await page.locator(selector).first().click().catch(() => {});
-        await page.waitForTimeout(5000);
+    await clickIfVisible("h5:has-text('Start Verification')");
+    await delay(3000);
+    await clickIfVisible("#verify_text");
+    await delay(5000);
+    await clickIfVisible("#verify_button");
+    await delay(2500);
+
+    const downloadBtnClicked = await clickIfVisible("#two_steps_btn") ||
+      await clickIfVisible("a:has-text('Go to download')") ||
+      await clickIfVisible("a:has-text('Continue')") ||
+      await clickIfVisible("a:has-text('Download')");
+
+    if (!downloadBtnClicked) {
+      await delay(3000);
+    }
+
+    const popup = await context.waitForEvent("page", { timeout: 12000 }).catch(() => null);
+    const pagesToInspect: Page[] = [page];
+    if (popup) {
+      await popup.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => {});
+      pagesToInspect.push(popup);
+    }
+
+    const aggregatedServers: Stream[] = [];
+
+    for (const activePage of pagesToInspect) {
+      if (!activePage.url().includes("driveseed.org")) {
+        await activePage.waitForTimeout(2000);
+      }
+
+      const instantSelectors = [
+        "a:has-text('Instant Download')",
+        "a.btn.btn-danger:has-text('Instant Download')",
+        "a:has-text('Download')",
+      ];
+
+      for (const selector of instantSelectors) {
+        const locator = activePage.locator(selector).first();
+        const isVisible = await locator.isVisible().catch(() => false);
+        if (isVisible) {
+          const href = await locator.getAttribute("href");
+          if (href) {
+            aggregatedServers.push({
+              server: "Instant Download",
+              link: href,
+              type: href.match(MEDIA_URL_PATTERN)?.[1] || "link",
+            });
+          }
+          await locator.click().catch(() => {});
+          await activePage.waitForTimeout(2500);
+          break;
+        }
+      }
+
+      const linkData = await activePage.$$eval("a[href]", (anchors) =>
+        anchors.map((a) => ({
+          text: a.textContent?.trim() || "",
+          href: (a as HTMLAnchorElement).href,
+        }))
+      );
+
+      for (const link of linkData) {
+        if (link.href.includes("video-leech.pro") || link.href.includes("driveseed.org")) {
+          aggregatedServers.push({
+            server: link.text || "Download Page",
+            link: link.href,
+            type: link.href.match(MEDIA_URL_PATTERN)?.[1] || "link",
+          });
+        }
       }
     }
 
-    const servers: Stream[] = [];
-    capturedLinks.forEach(link => {
-      servers.push({
-        server: "Headless Capture",
-        link,
-        type: link.match(MEDIA_URL_PATTERN)?.[1] || "link"
+    for (const discoveredPageUrl of discoveredDownloadPages) {
+      aggregatedServers.push({
+        server: "Resolved Page",
+        link: discoveredPageUrl,
+        type: discoveredPageUrl.match(MEDIA_URL_PATTERN)?.[1] || "link",
       });
-    });
+    }
 
-    // Also extract from page content
-    const pageLinks = await page.$$eval("a[href]", (anchors) =>
-      anchors.map(a => ({ text: a.textContent?.trim(), href: (a as HTMLAnchorElement).href }))
-    );
+    for (const capturedLink of capturedLinks) {
+      aggregatedServers.push({
+        server: "Headless Capture",
+        link: capturedLink,
+        type: capturedLink.match(MEDIA_URL_PATTERN)?.[1] || "link",
+      });
+    }
 
-    pageLinks.forEach(l => {
-      if (MEDIA_URL_PATTERN.test(l.href)) {
-        servers.push({
-          server: l.text || "Direct Link",
-          link: l.href,
-          type: l.href.match(MEDIA_URL_PATTERN)?.[1] || "link"
-        });
-      }
-    });
+    const onPageServers = await extractServersFromCurrentPage();
+    aggregatedServers.push(...onPageServers);
 
-    return Array.from(new Map(servers.map(s => [s.link, s])).values());
+    return Array.from(new Map(aggregatedServers.map((server) => [server.link, server])).values());
   } catch (err) {
     console.error("[Headless] Error:", err);
     return [];
