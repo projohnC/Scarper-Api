@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { validateProviderAccess, createProviderErrorResponse } from "@/lib/provider-validator";
+import { getBaseUrl } from "@/lib/baseurl";
 
 interface DownloadLink {
   quality: string;
@@ -60,6 +61,15 @@ interface KMMoviesDetailsResponse {
   error?: string;
 }
 
+function toAbsoluteUrl(value: string, baseUrl: string): string {
+  if (!value) return "";
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "KMMovies");
   if (!validation.valid) {
@@ -80,8 +90,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const baseUrl = await getBaseUrl("KMMovies");
+    let decodedUrl = url;
+    try {
+      decodedUrl = decodeURIComponent(url);
+    } catch {
+      decodedUrl = url;
+    }
+    const resolvedUrl = toAbsoluteUrl(decodedUrl, baseUrl);
+
     // Fetch the movie details page
-    const response = await fetch(url, {
+    const response = await fetch(resolvedUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -99,7 +118,10 @@ export async function GET(request: NextRequest) {
     const $ = cheerio.load(html);
 
     // Extract title
-    const title = $(".hero-title").first().text().trim() || $("h1").first().text().trim();
+    const title =
+      $(".hero-title, .entry-title, h1").first().text().trim() ||
+      $("meta[property='og:title']").attr("content") ||
+      "";
 
     // Try to parse JSON-LD
     let jsonLdData: JsonLdMovie | null = null;
@@ -120,14 +142,21 @@ export async function GET(request: NextRequest) {
 
     // Extract categories/tags
     const categories: string[] = [];
-    $(".breadcrumb a").each((i, elem) => {
+    $(".breadcrumb a, .cat-links a, .entry-categories a").each((i, elem) => {
       if (i > 0) { // Skip "Home"
-        categories.push($(elem).text().trim());
+        const category = $(elem).text().trim();
+        if (category && !categories.includes(category)) {
+          categories.push(category);
+        }
       }
     });
 
     // Extract poster image
-    const posterImage = $(".hero-poster").attr("src") || $(".post-thumbnail img").attr("src") || jsonLdData?.image || "";
+    const posterImage =
+      toAbsoluteUrl($(".hero-poster").attr("src") || "", baseUrl) ||
+      toAbsoluteUrl($(".post-thumbnail img, .featured-image img, .entry-content img").first().attr("src") || "", baseUrl) ||
+      jsonLdData?.image ||
+      "";
 
     // Extract screenshots from slider
     const screenshots: string[] = [];
@@ -135,14 +164,26 @@ export async function GET(request: NextRequest) {
     if (sliderData) {
       try {
         const images = JSON.parse(sliderData);
-        screenshots.push(...images);
+        screenshots.push(...images.map((img: string) => toAbsoluteUrl(img, baseUrl)));
       } catch (e) {
         console.error("Failed to parse screenshots:", e);
       }
     }
 
+    if (screenshots.length === 0) {
+      $(".ss-img img, .gallery img, .entry-content img").each((_, imgElem) => {
+        const src = toAbsoluteUrl($(imgElem).attr("src") || "", baseUrl);
+        if (src && !screenshots.includes(src) && src !== posterImage) {
+          screenshots.push(src);
+        }
+      });
+    }
+
     // Extract storyline
-    const storyline = $(".hero-description").text().trim() || jsonLdData?.description || "";
+    const storyline =
+      $(".hero-description, .plot-summary, .entry-content p").first().text().trim() ||
+      jsonLdData?.description ||
+      "";
 
     // Extract movie info
     const movieInfo: MovieInfo = {};
@@ -168,6 +209,30 @@ export async function GET(request: NextRequest) {
       movieInfo.runningTime = durationText;
     }
 
+    // Fallback info extraction from visible metadata blocks
+    $(".entry-content p, .single-service-content p").each((_, element) => {
+      const text = $(element).text().replace(/\s+/g, " ").trim();
+      if (!text.includes(":")) return;
+
+      const [rawLabel, ...rest] = text.split(":");
+      const label = rawLabel.trim().toLowerCase();
+      const value = rest.join(":").trim();
+      if (!value) return;
+
+      if (label.includes("movie name") && !movieInfo.movieName) movieInfo.movieName = value;
+      if (label.includes("director") && !movieInfo.director) movieInfo.director = value;
+      if ((label.includes("starring") || label.includes("cast")) && !movieInfo.starring) movieInfo.starring = value;
+      if ((label.includes("genres") || label.includes("genre")) && !movieInfo.genres) movieInfo.genres = value;
+      if ((label.includes("running") || label.includes("duration")) && !movieInfo.runningTime) movieInfo.runningTime = value;
+      if (label.includes("writer") && !movieInfo.writer) movieInfo.writer = value;
+      if (label.includes("release") && !movieInfo.releaseDate) movieInfo.releaseDate = value;
+      if (label.includes("ott") && !movieInfo.ott) movieInfo.ott = value;
+      if (label.includes("quality") && !movieInfo.quality) movieInfo.quality = value;
+      if (label.includes("language") && !movieInfo.language) movieInfo.language = value;
+      if (label.includes("subtitles") && !movieInfo.subtitles) movieInfo.subtitles = value;
+      if (label.includes("format") && !movieInfo.format) movieInfo.format = value;
+    });
+
     // Extract download links
     const downloadLinks: DownloadLink[] = [];
     $(".download-category").each((_, catElem) => {
@@ -188,6 +253,24 @@ export async function GET(request: NextRequest) {
         }
       });
     });
+
+    if (downloadLinks.length === 0) {
+      $(".downloads-btns-div a.btn, .download-buttons a.download-button, a.btn-zip, a[href*='magiclinks']").each((_, elem) => {
+        const btn = $(elem);
+        const href = toAbsoluteUrl(btn.attr("href") || "", baseUrl);
+        const rawText = btn.text().replace(/\s+/g, " ").trim();
+        if (!href) return;
+
+        const qualityMatch = rawText.match(/(4k|2160p|1080p|720p|480p)/i);
+        const fileSizeMatch = rawText.match(/(\d+(?:\.\d+)?\s?(?:GB|MB))/i);
+
+        downloadLinks.push({
+          quality: qualityMatch?.[1] || rawText || "Download",
+          fileSize: fileSizeMatch?.[1],
+          url: href,
+        });
+      });
+    }
 
     const responseData: KMMoviesDetailsResponse = {
       success: true,
