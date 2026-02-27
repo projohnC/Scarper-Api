@@ -24,6 +24,15 @@ interface KMMoviesResponse {
   error?: string;
 }
 
+function toAbsoluteUrl(value: string, baseUrl: string): string {
+  if (!value) return "";
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "KMMovies");
   if (!validation.valid) {
@@ -66,19 +75,25 @@ export async function GET(request: NextRequest) {
     const $ = cheerio.load(html);
 
     const movies: Movie[] = [];
+    const seenUrls = new Set<string>();
 
-    // Parse articles from the site-main section
-    $("article.movie-card").each((_, element) => {
+    // Parse articles from both old and new KMMovies layouts
+    $("article.movie-card, article.post, .post-item, .items article").each((_, element) => {
       const article = $(element);
-      const link = article.find("a").first();
-      const url = link.attr("href") || "";
+      const link = article.find("a[href]").first();
+      const rawUrl = link.attr("href") || "";
+      const url = toAbsoluteUrl(rawUrl, baseUrl);
       const id = url.split("/").filter(Boolean).pop() || "";
-      const img = article.find("img.poster");
-      const image = img.attr("src") || "";
+      const img = article.find("img.poster, img.wp-post-image, img").first();
+      const image = toAbsoluteUrl(img.attr("src") || "", baseUrl);
       const imageAlt = img.attr("alt") || "";
-      const title = article.find(".movie-title").text().trim() || imageAlt;
+      const title =
+        article.find(".movie-title, .entry-title, .post-title, h2, h3").first().text().trim() ||
+        link.attr("title") ||
+        imageAlt;
 
-      if (url && title) {
+      if (url && title && !seenUrls.has(url)) {
+        seenUrls.add(url);
         movies.push({
           id,
           title,
@@ -96,13 +111,13 @@ export async function GET(request: NextRequest) {
       last: null as string | null,
     };
 
-    const nextLink = $("nav.pager a.next").attr("href");
+    const nextLink = $("nav.pager a.next, .nav-links a.next, .nav-links a.nextpostslink").first().attr("href");
     if (nextLink) {
       const nextPage = nextLink.match(/\/page\/(\d+)\//);
       pagination.next = nextPage ? nextPage[1] : null;
     }
 
-    const lastLink = $("nav.pager a.page-numbers")
+    const lastLink = $("nav.pager a.page-numbers, .nav-links a.page-numbers")
       .not(".next")
       .not(".current")
       .not(".dots")

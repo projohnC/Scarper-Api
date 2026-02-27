@@ -21,6 +21,15 @@ interface KMMoviesSearchResponse {
   error?: string;
 }
 
+function toAbsoluteUrl(value: string, baseUrl: string): string {
+  if (!value) return "";
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const validation = await validateProviderAccess(request, "KMMovies");
   if (!validation.valid) {
@@ -62,19 +71,25 @@ export async function GET(request: NextRequest) {
     const $ = cheerio.load(html);
 
     const results: Movie[] = [];
+    const seenUrls = new Set<string>();
 
-    // Parse search result articles
-    $("article.movie-card").each((_, element) => {
+    // Parse search result articles from multiple KMMovies layouts
+    $("article.movie-card, article.post, .post-item, .items article").each((_, element) => {
       const article = $(element);
-      const link = article.find("a").first();
-      const url = link.attr("href") || "";
+      const link = article.find("a[href]").first();
+      const rawUrl = link.attr("href") || "";
+      const url = toAbsoluteUrl(rawUrl, baseUrl);
       const id = url.split("/").filter(Boolean).pop() || "";
-      const img = article.find("img.poster");
-      const image = img.attr("src") || "";
+      const img = article.find("img.poster, img.wp-post-image, img").first();
+      const image = toAbsoluteUrl(img.attr("src") || "", baseUrl);
       const imageAlt = img.attr("alt") || "";
-      const title = article.find(".movie-title").text().trim() || imageAlt;
+      const title =
+        article.find(".movie-title, .entry-title, .post-title, h2, h3").first().text().trim() ||
+        link.attr("title") ||
+        imageAlt;
 
-      if (url && title) {
+      if (url && title && !seenUrls.has(url)) {
+        seenUrls.add(url);
         results.push({
           id,
           title,
